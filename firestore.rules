@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: apartments
+    // Fields: name, description, pricePerNight, capacity, amenities, images, slug, metaTitle, metaDescription
+    //
+    // Collection: bookings
+    // Fields: apartmentId, guestName, guestEmail, guestPhone, checkIn, checkOut, totalPrice, status, createdAt
+    //
+    // Collection: blogPosts
+    // Fields: title, content, excerpt, image, author, date, slug, metaTitle, metaDescription
+    //
+    // Collection: testimonials
+    // Fields: name, rating, comment, date
+    //
+    // Collection: settings
+    // Fields: brandColor, contactEmail, contactPhone, instagramUrl, facebookUrl
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         (request.auth.token.email == "petreandrei1979@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'points', 'role']) &&
+             data.uid is string &&
+             isValidEmail(data.email) &&
+             data.points is number &&
+             data.role in ['admin', 'user'] &&
+             (!('lastLogin' in data) || isValidDateString(data.lastLogin)) &&
+             (!('createdAt' in data) || isValidDateString(data.createdAt));
+    }
+
+    function isUserUpdateValid(current, next) {
+      // Allow updating lastLogin and points (within limits)
+      // Role can only be changed by admin (handled in the match block)
+      return next.uid == current.uid &&
+             next.email == current.email &&
+             next.role == current.role &&
+             (next.points == current.points || next.points == current.points + 10);
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['apartmentId', 'checkIn', 'checkOut', 'totalPrice', 'status']) &&
+             data.apartmentId is string &&
+             isValidDateString(data.checkIn) &&
+             isValidDateString(data.checkOut) &&
+             data.totalPrice is number &&
+             data.status in ['pending', 'confirmed', 'cancelled'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /apartments/{apartmentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.guestEmail == request.auth.token.email);
+      allow create: if isValidBooking(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /blogPosts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && isUserUpdateValid(resource.data, request.resource.data)) || isAdmin();
+    }
+  }
+}

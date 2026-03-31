@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "apartment": {
+      "title": "Apartment",
+      "description": "A luxury serviced apartment unit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "pricePerNight": { "type": "number" },
+        "capacity": { "type": "integer" },
+        "bedrooms": { "type": "integer" },
+        "bathrooms": { "type": "integer" },
+        "amenities": { "type": "array", "items": { "type": "string" } },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "location": { "type": "string" },
+        "slug": { "type": "string" },
+        "metaTitle": { "type": "string" },
+        "metaDescription": { "type": "string" }
+      },
+      "required": ["name", "description", "pricePerNight", "capacity", "slug"]
+    },
+    "booking": {
+      "title": "Booking",
+      "description": "A reservation made by a guest.",
+      "type": "object",
+      "properties": {
+        "apartmentId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "guestEmail": { "type": "string" },
+        "guestPhone": { "type": "string" },
+        "checkIn": { "type": "string", "format": "date-time" },
+        "checkOut": { "type": "string", "format": "date-time" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["apartmentId", "guestName", "guestEmail", "checkIn", "checkOut", "totalPrice", "status"]
+    },
+    "blogPost": {
+      "title": "Blog Post",
+      "description": "A city guide or news article.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "image": { "type": "string" },
+        "author": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "slug": { "type": "string" },
+        "metaTitle": { "type": "string" },
+        "metaDescription": { "type": "string" }
+      },
+      "required": ["title", "content", "slug"]
+    },
+    "testimonial": {
+      "title": "Testimonial",
+      "description": "Customer feedback.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["name", "rating", "comment"]
+    },
+    "userProfile": {
+      "title": "User Profile",
+      "description": "User profile with loyalty points and access control.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "points": { "type": "number" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "points", "role"]
+    },
+    "siteSettings": {
+      "title": "Site Settings",
+      "description": "Global configuration for the website.",
+      "type": "object",
+      "properties": {
+        "brandColor": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "instagramUrl": { "type": "string" },
+        "facebookUrl": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/apartments/{apartmentId}": {
+      "schema": "apartment",
+      "description": "Collection of available apartments."
+    },
+    "/bookings/{bookingId}": {
+      "schema": "booking",
+      "description": "Collection of guest reservations."
+    },
+    "/blogPosts/{postId}": {
+      "schema": "blogPost",
+      "description": "Collection of blog articles."
+    },
+    "/testimonials/{testimonialId}": {
+      "schema": "testimonial",
+      "description": "Collection of customer reviews."
+    },
+    "/users/{uid}": {
+      "schema": "userProfile",
+      "description": "User profiles and loyalty data."
+    },
+    "/settings/global": {
+      "schema": "siteSettings",
+      "description": "Global site configuration."
+    }
+  }
+}
