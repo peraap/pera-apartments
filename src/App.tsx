@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { 
   BrowserRouter as Router, 
   Routes, 
@@ -25,13 +25,15 @@ import {
 import { Toaster, toast } from 'sonner';
 import { AuthProvider, useAuth } from './AuthContext';
 import { AuthModal } from './components/AuthModal';
-import Home from './pages/Home';
-import Apartments from './pages/Apartments';
-import ApartmentDetail from './pages/ApartmentDetail';
-import Contact from './pages/Contact';
-import Admin from './pages/Admin';
-import Legal from './pages/Legal';
-import Auth from './pages/Auth';
+
+// Lazy load pages
+const Home = lazy(() => import('./pages/Home'));
+const Apartments = lazy(() => import('./pages/Apartments'));
+const ApartmentDetail = lazy(() => import('./pages/ApartmentDetail'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Legal = lazy(() => import('./pages/Legal'));
+const Auth = lazy(() => import('./pages/Auth'));
 
 const translations = {
   ro: {
@@ -475,15 +477,21 @@ export default function App() {
         <div className="min-h-screen flex flex-col font-sans bg-white text-black">
           <Navbar lang={lang} setLang={setLang} />
           <main className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Home lang={lang} />} />
-              <Route path="/apartamente" element={<Apartments lang={lang} />} />
-              <Route path="/apartamente/:slug" element={<ApartmentDetail lang={lang} />} />
-              <Route path="/contact" element={<Contact lang={lang} />} />
-              <Route path="/login" element={<Auth lang={lang} />} />
-              <Route path="/admin/*" element={<Admin />} />
-              <Route path="/legal/:type" element={<Legal lang={lang} />} />
-            </Routes>
+            <Suspense fallback={
+              <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            }>
+              <Routes>
+                <Route path="/" element={<Home lang={lang} />} />
+                <Route path="/apartamente" element={<Apartments lang={lang} />} />
+                <Route path="/apartamente/:slug" element={<ApartmentDetail lang={lang} />} />
+                <Route path="/contact" element={<Contact lang={lang} />} />
+                <Route path="/login" element={<Auth lang={lang} />} />
+                <Route path="/admin/*" element={<Admin />} />
+                <Route path="/legal/:type" element={<Legal lang={lang} />} />
+              </Routes>
+            </Suspense>
           </main>
           <Footer lang={lang} />
           <Toaster position="top-center" />
