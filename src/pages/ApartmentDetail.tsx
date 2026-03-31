@@ -121,10 +121,10 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         bathrooms: 1,
         amenities: lang === 'ro' ? ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"] : ["Private bathroom", "Toiletries", "Shower", "Slippers", "Hairdryer", "Mountain view", "Safe", "Flat-screen TV", "Towels", "Bed linen", "Heating", "Wardrobe", "Air conditioning", "Fridge", "Coffee/tea maker"],
         images: [
-          "/3e764a85-4926-4f96-94b8-2635381d7e82.jfif",
-          "/54af473d-3cf2-40a4-9c03-d26751e4ff65-1.jfif",
-          "/3333a7d2-a3c7-4bfa-b200-2a4c388f6197.jfif",
-          "/f4a34b0c-9a53-4143-a308-3093fa9a34df-1.jfif"
+          "/3e764a85-4926-4f96-94b8-2635381d7e82.jpg",
+          "/54af473d-3cf2-40a4-9c03-d26751e4ff65-1.jpg",
+          "/3333a7d2-a3c7-4bfa-b200-2a4c388f6197.jpg",
+          "/f4a34b0c-9a53-4143-a308-3093fa9a34df-1.jpg"
         ],
         location: "Cristian, Brașov",
         slug: "apartament-premium-king",
@@ -143,7 +143,7 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         amenities: lang === 'ro' ? ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"] : ["Private bathroom", "Toiletries", "Shower", "Slippers", "Hairdryer", "Mountain view", "Safe", "Flat-screen TV", "Towels", "Bed linen", "Heating", "Wardrobe", "Air conditioning", "Fridge", "Coffee/tea maker"],
         images: [
           "/713256990.jpg",
-          "/740f0b90-e7ce-42f5-80fc-322333332540.jfif",
+          "/740f0b90-e7ce-42f5-80fc-322333332540.jpg",
           "/763019094.jpg"
         ],
         location: "Cristian, Brașov",
@@ -162,11 +162,11 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         bathrooms: 1,
         amenities: lang === 'ro' ? ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"] : ["Private kitchenette", "Fridge", "Kitchen utensils", "Toaster", "Coffee/tea maker", "Electric kettle", "Dining area", "Private bathroom", "Toiletries", "Shower", "Slippers", "Hairdryer", "Balcony", "Mountain view", "Safe", "Flat-screen TV", "Towels", "Bed linen", "Sofa bed", "Heating", "Wardrobe", "Air conditioning"],
         images: [
-          "/2187ff16-ad7e-45f4-9802-c466a89be635.jfif",
-          "/793bc1c7-9fda-4077-b1be-e098f0325f97.jfif",
-          "/796a0c21-506d-4a55-9041-055117366e5f.jfif",
-          "/f8d66e83-5317-43f1-86e4-112c669e2217.jfif",
-          "/09b78d8f-35b4-466b-9b4c-87c7ae642a6f.jfif"
+          "/2187ff16-ad7e-45f4-9802-c466a89be635.jpg",
+          "/793bc1c7-9fda-4077-b1be-e098f0325f97.jpg",
+          "/796a0c21-506d-4a55-9041-055117366e5f.jpg",
+          "/f8d66e83-5317-43f1-86e4-112c669e2217.jpg",
+          "/09b78d8f-35b4-466b-9b4c-87c7ae642a6f.jpg"
         ],
         location: "Cristian, Brașov",
         slug: "apartament-family-deluxe",
@@ -184,11 +184,11 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         bathrooms: 1,
         amenities: lang === 'ro' ? ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Pat XL", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"] : ["Private kitchenette", "Fridge", "Kitchen utensils", "Toaster", "Coffee/tea maker", "Electric kettle", "Dining area", "Private bathroom", "Toiletries", "Shower", "Slippers", "Hairdryer", "Balcony", "Mountain view", "Safe", "Flat-screen TV", "Towels", "Bed linen", "XL Bed", "Sofa bed", "Heating", "Wardrobe", "Air conditioning"],
         images: [
-          "/01159e24-68b8-4e3b-a79e-9033ac44336c.jfif",
-          "/60ec7951-8ef3-46b5-aa79-375b228417cc.jfif",
-          "/a1ed67e3-60cb-4b6b-b440-71d151c2a0f1.jfif",
-          "/1b7242ae-736a-4b06-9825-94106c880657.jfif",
-          "/4587fe93-7975-453c-b289-7d2c0d99c50d.jfif"
+          "/01159e24-68b8-4e3b-a79e-9033ac44336c.jpg",
+          "/60ec7951-8ef3-46b5-aa79-375b228417cc.jpg",
+          "/a1ed67e3-60cb-4b6b-b440-71d151c2a0f1.jpg",
+          "/1b7242ae-736a-4b06-9825-94106c880657.jpg",
+          "/4587fe93-7975-453c-b289-7d2c0d99c50d.jpg"
         ],
         location: "Cristian, Brașov",
         slug: "apartament-family-standard",

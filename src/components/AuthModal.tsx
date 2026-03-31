@@ -57,7 +57,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             {/* Left Side - Visual/Branding */}
             <div className="hidden md:block w-1/3 bg-neutral-900 relative overflow-hidden">
               <img 
-                src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jfif" 
+                src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jpg" 
                 alt="Pera Interior" 
                 className="absolute inset-0 w-full h-full object-cover opacity-40"
               />

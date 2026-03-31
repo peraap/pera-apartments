@@ -145,7 +145,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         rooms: 1,
         bathrooms: 1,
         amenities: ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"],
-        images: ["/54af473d-3cf2-40a4-9c03-d26751e4ff65-1.jfif", "/3e764a85-4926-4f96-94b8-2635381d7e82.jfif"],
+        images: ["/54af473d-3cf2-40a4-9c03-d26751e4ff65-1.jpg", "/3e764a85-4926-4f96-94b8-2635381d7e82.jpg"],
         location: "Cristian, Brașov",
         slug: "apartament-premium-king",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
@@ -161,7 +161,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         rooms: 1,
         bathrooms: 1,
         amenities: ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"],
-        images: ["/740f0b90-e7ce-42f5-80fc-322333332540.jfif", "/713256990.jpg"],
+        images: ["/740f0b90-e7ce-42f5-80fc-322333332540.jpg", "/713256990.jpg"],
         location: "Cristian, Brașov",
         slug: "apartament-deluxe-double",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
@@ -177,7 +177,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         rooms: 2,
         bathrooms: 1,
         amenities: ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"],
-        images: ["/793bc1c7-9fda-4077-b1be-e098f0325f97.jfif", "/2187ff16-ad7e-45f4-9802-c466a89be635.jfif"],
+        images: ["/793bc1c7-9fda-4077-b1be-e098f0325f97.jpg", "/2187ff16-ad7e-45f4-9802-c466a89be635.jpg"],
         location: "Cristian, Brașov",
         slug: "apartament-family-deluxe",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
@@ -193,7 +193,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         rooms: 2,
         bathrooms: 1,
         amenities: ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Pat XL", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"],
-        images: ["/60ec7951-8ef3-46b5-aa79-375b228417cc.jfif", "/01159e24-68b8-4e3b-a79e-9033ac44336c.jfif"],
+        images: ["/60ec7951-8ef3-46b5-aa79-375b228417cc.jpg", "/01159e24-68b8-4e3b-a79e-9033ac44336c.jpg"],
         location: "Cristian, Brașov",
         slug: "apartament-family-standard",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
@@ -240,7 +240,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
       <section className="relative h-[50vh] flex items-center justify-center overflow-hidden mb-20">
         <div className="absolute inset-0 z-0">
           <img 
-            src="/6f0ac557-4bd0-4f6f-a395-20852779b012.jfif" 
+            src="/6f0ac557-4bd0-4f6f-a395-20852779b012.jpg" 
             alt="Pera Apartments Hero" 
             className="w-full h-full object-cover brightness-50"
           />
@@ -324,7 +324,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
                   <Link to={`/apartamente/${apt.slug}`} className="block group">
                     <div className="relative aspect-[16/10] overflow-hidden rounded-3xl shadow-xl bg-neutral-100">
                       <img 
-                        src={apt.images[0] || "/6f0ac557-4bd0-4f6f-a395-20852779b012.jfif"} 
+                        src={apt.images[0] || "/6f0ac557-4bd0-4f6f-a395-20852779b012.jpg"} 
                         alt={apt.name} 
                         className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                         loading="lazy"
@@ -426,7 +426,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
             <div className="relative">
               <div className="aspect-[4/5] rounded-3xl overflow-hidden border border-white/10">
                 <img 
-                  src="/e27fa483-a5c6-40da-8117-b72cee32f1b4.jfif" 
+                  src="/e27fa483-a5c6-40da-8117-b72cee32f1b4.jpg" 
                   alt="Interior Pera" 
                   className="w-full h-full object-cover"
                 />
@@ -490,28 +490,28 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/4587fe93-7975-453c-b289-7d2c0d99c50d.jfif" alt="Gallery 1" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/4587fe93-7975-453c-b289-7d2c0d99c50d.jpg" alt="Gallery 1" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/6cb8aae8-197b-4810-bbb5-4ef5aa20268a.jfif" alt="Gallery 2" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/6cb8aae8-197b-4810-bbb5-4ef5aa20268a.jpg" alt="Gallery 2" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/740f0b90-e7ce-42f5-80fc-322333332540.jfif" alt="Gallery 3" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/740f0b90-e7ce-42f5-80fc-322333332540.jpg" alt="Gallery 3" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/cc4887fc-429b-4e77-9b14-db7ac9117ef5.jfif" alt="Gallery 4" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/cc4887fc-429b-4e77-9b14-db7ac9117ef5.jpg" alt="Gallery 4" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/796a0c21-506d-4a55-9041-055117366e5f.jfif" alt="Gallery 5" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/796a0c21-506d-4a55-9041-055117366e5f.jpg" alt="Gallery 5" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/23546336-79f7-4f7d-969a-c3ff93a58c0e.jfif" alt="Gallery 6" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/23546336-79f7-4f7d-969a-c3ff93a58c0e.jpg" alt="Gallery 6" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/845e3f2f-3737-4564-9ec4-04f2db023a36.jfif" alt="Gallery 7" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/845e3f2f-3737-4564-9ec4-04f2db023a36.jpg" alt="Gallery 7" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/a3be2a84-8555-4e07-9437-71c828448bbe.jfif" alt="Gallery 8" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+              <img src="/a3be2a84-8555-4e07-9437-71c828448bbe.jpg" alt="Gallery 8" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
           </div>
         </section>

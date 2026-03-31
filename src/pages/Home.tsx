@@ -171,7 +171,7 @@ const Hero = ({ t }: { t: any }) => {
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img 
-          src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jfif" 
+          src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jpg" 
           alt="Pera Apartments Living Room" 
           className="w-full h-full object-cover"
         />
@@ -307,22 +307,22 @@ const ApartmentPreview = ({ t }: { t: any }) => {
   const apartments = [
     {
       name: t.apt1Name,
-      image: "/54af473d-3cf2-40a4-9c03-d26751e4ff65-1.jfif",
+      image: "/54af473d-3cf2-40a4-9c03-d26751e4ff65-1.jpg",
       tags: t.apt1Tags
     },
     {
       name: t.apt2Name,
-      image: "/740f0b90-e7ce-42f5-80fc-322333332540.jfif",
+      image: "/740f0b90-e7ce-42f5-80fc-322333332540.jpg",
       tags: t.apt2Tags
     },
     {
       name: t.apt3Name,
-      image: "/793bc1c7-9fda-4077-b1be-e098f0325f97.jfif",
+      image: "/793bc1c7-9fda-4077-b1be-e098f0325f97.jpg",
       tags: t.apt3Tags
     },
     {
       name: t.apt4Name,
-      image: "/60ec7951-8ef3-46b5-aa79-375b228417cc.jfif",
+      image: "/60ec7951-8ef3-46b5-aa79-375b228417cc.jpg",
       tags: t.apt4Tags
     }
   ];
@@ -540,14 +540,14 @@ const TennisCourt = ({ t }: { t: any }) => {
           <div className="order-1 lg:order-2 grid grid-cols-2 gap-4">
             <div className="aspect-[4/5] rounded-3xl overflow-hidden">
               <img 
-                src="/47c15380-62ba-479c-8720-c45112e0cc76.jfif" 
+                src="/47c15380-62ba-479c-8720-c45112e0cc76.jpg" 
                 alt="Tennis Court 1" 
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="aspect-[4/5] rounded-3xl overflow-hidden mt-8">
               <img 
-                src="/603bc507-195c-43f5-8de7-02d10220a4aa.jfif" 
+                src="/603bc507-195c-43f5-8de7-02d10220a4aa.jpg" 
                 alt="Tennis Court 2" 
                 className="w-full h-full object-cover"
               />
@@ -585,7 +585,7 @@ export default function Home({ lang }: { lang: 'ro' | 'en' }) {
             >
               <div className="relative z-10 overflow-hidden rounded-2xl shadow-2xl">
                 <img 
-                  src="/1d745365-58af-4c7f-aee2-f80e2012d2e1.jfif" 
+                  src="/1d745365-58af-4c7f-aee2-f80e2012d2e1.jpg" 
                   alt="Pera Apartments Story" 
                   className="w-full aspect-[4/5] object-cover hover:scale-105 transition-transform duration-700"
                 />
@@ -646,11 +646,11 @@ export default function Home({ lang }: { lang: 'ro' | 'en' }) {
           </motion.div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              "/f8d66e83-5317-43f1-86e4-112c669e2217.jfif",
-              "/3e764a85-4926-4f96-94b8-2635381d7e82.jfif",
-              "/b7d46158-77cd-4a02-ab2f-d121c351f5ce.jfif",
-              "/d756fd30-26cf-43d4-bc3d-e4ed5226a59e.jfif",
-              "/23546336-79f7-4f7d-969a-c3ff93a58c0e.jfif"
+              "/f8d66e83-5317-43f1-86e4-112c669e2217.jpg",
+              "/3e764a85-4926-4f96-94b8-2635381d7e82.jpg",
+              "/b7d46158-77cd-4a02-ab2f-d121c351f5ce.jpg",
+              "/d756fd30-26cf-43d4-bc3d-e4ed5226a59e.jpg",
+              "/23546336-79f7-4f7d-969a-c3ff93a58c0e.jpg"
             ].map((img, i) => (
               <motion.div 
                 key={i} 
