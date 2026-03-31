@@ -51,7 +51,6 @@ export default function AuthPage({ lang }: { lang: 'ro' | 'en' }) {
             src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jfif" 
             alt="Pera Interior" 
             className="absolute inset-0 w-full h-full object-cover opacity-50"
-            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
           <div className="absolute bottom-12 left-12 right-12 text-white">

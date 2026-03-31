@@ -243,7 +243,6 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
             src="/6f0ac557-4bd0-4f6f-a395-20852779b012.jfif" 
             alt="Pera Apartments Hero" 
             className="w-full h-full object-cover brightness-50"
-            referrerPolicy="no-referrer"
           />
         </div>
         <div className="relative z-10 text-center text-white px-4 max-w-4xl">
@@ -328,7 +327,6 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
                         src={apt.images[0] || "/6f0ac557-4bd0-4f6f-a395-20852779b012.jfif"} 
                         alt={apt.name} 
                         className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                        referrerPolicy="no-referrer"
                         loading="lazy"
                       />
                       {apt.slug === 'teren-tenis' && (
@@ -431,7 +429,6 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
                   src="/e27fa483-a5c6-40da-8117-b72cee32f1b4.jfif" 
                   alt="Interior Pera" 
                   className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
                 />
               </div>
               <div className="absolute -bottom-10 -right-10 bg-white p-5 rounded-3xl shadow-2xl hidden md:block max-w-[240px] text-black">
@@ -493,28 +490,28 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/4587fe93-7975-453c-b289-7d2c0d99c50d.jfif" alt="Gallery 1" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/4587fe93-7975-453c-b289-7d2c0d99c50d.jfif" alt="Gallery 1" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/6cb8aae8-197b-4810-bbb5-4ef5aa20268a.jfif" alt="Gallery 2" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/6cb8aae8-197b-4810-bbb5-4ef5aa20268a.jfif" alt="Gallery 2" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/740f0b90-e7ce-42f5-80fc-322333332540.jfif" alt="Gallery 3" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/740f0b90-e7ce-42f5-80fc-322333332540.jfif" alt="Gallery 3" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/cc4887fc-429b-4e77-9b14-db7ac9117ef5.jfif" alt="Gallery 4" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/cc4887fc-429b-4e77-9b14-db7ac9117ef5.jfif" alt="Gallery 4" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/796a0c21-506d-4a55-9041-055117366e5f.jfif" alt="Gallery 5" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/796a0c21-506d-4a55-9041-055117366e5f.jfif" alt="Gallery 5" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/23546336-79f7-4f7d-969a-c3ff93a58c0e.jfif" alt="Gallery 6" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/23546336-79f7-4f7d-969a-c3ff93a58c0e.jfif" alt="Gallery 6" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/845e3f2f-3737-4564-9ec4-04f2db023a36.jfif" alt="Gallery 7" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/845e3f2f-3737-4564-9ec4-04f2db023a36.jfif" alt="Gallery 7" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
             <div className="aspect-square rounded-2xl overflow-hidden">
-              <img src="/a3be2a84-8555-4e07-9437-71c828448bbe.jfif" alt="Gallery 8" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+              <img src="/a3be2a84-8555-4e07-9437-71c828448bbe.jfif" alt="Gallery 8" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
             </div>
           </div>
         </section>

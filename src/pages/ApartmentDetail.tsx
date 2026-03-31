@@ -306,7 +306,6 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
                   src={img} 
                   alt={`${apartment.name} ${i + 1}`} 
                   className="h-full w-auto object-contain"
-                  referrerPolicy="no-referrer"
                 />
               </div>
             </div>

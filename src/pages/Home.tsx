@@ -174,7 +174,6 @@ const Hero = ({ t }: { t: any }) => {
           src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jfif" 
           alt="Pera Apartments Living Room" 
           className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-black/40"></div>
       </div>
@@ -359,7 +358,6 @@ const ApartmentPreview = ({ t }: { t: any }) => {
                   src={apt.image} 
                   alt={apt.name} 
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  referrerPolicy="no-referrer"
                 />
                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-500"></div>
                 
@@ -545,7 +543,6 @@ const TennisCourt = ({ t }: { t: any }) => {
                 src="/47c15380-62ba-479c-8720-c45112e0cc76.jfif" 
                 alt="Tennis Court 1" 
                 className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
               />
             </div>
             <div className="aspect-[4/5] rounded-3xl overflow-hidden mt-8">
@@ -553,7 +550,6 @@ const TennisCourt = ({ t }: { t: any }) => {
                 src="/603bc507-195c-43f5-8de7-02d10220a4aa.jfif" 
                 alt="Tennis Court 2" 
                 className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -592,7 +588,6 @@ export default function Home({ lang }: { lang: 'ro' | 'en' }) {
                   src="/1d745365-58af-4c7f-aee2-f80e2012d2e1.jfif" 
                   alt="Pera Apartments Story" 
                   className="w-full aspect-[4/5] object-cover hover:scale-105 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
                 />
               </div>
               <div className="absolute -bottom-10 -right-10 bg-white p-8 hidden lg:flex items-center space-x-4 shadow-2xl rounded-xl z-20 border border-neutral-100">
@@ -669,7 +664,6 @@ export default function Home({ lang }: { lang: 'ro' | 'en' }) {
                   src={img} 
                   alt="Social Feed" 
                   className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
-                  referrerPolicy="no-referrer"
                 />
               </motion.div>
             ))}

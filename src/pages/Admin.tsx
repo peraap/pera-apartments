@@ -479,7 +479,7 @@ const ApartmentsManager = () => {
         {apartments.map(apt => (
           <div key={apt.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-neutral-100 group">
             <div className="aspect-video relative">
-              <img src={apt.images[0]} alt={apt.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={apt.images[0]} alt={apt.name} className="w-full h-full object-cover" />
               <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => startEdit(apt)} className="p-2 bg-white rounded-lg text-neutral-600 shadow-lg hover:bg-neutral-50"><Edit size={14} /></button>
                 <button onClick={() => handleDelete(apt.id)} className="p-2 bg-white rounded-lg text-red-600 shadow-lg hover:bg-red-50"><Trash2 size={14} /></button>
@@ -669,7 +669,7 @@ const BlogManager = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {posts.map(post => (
           <div key={post.id} className="bg-white p-6 rounded-3xl border border-neutral-100 flex space-x-6 items-start">
-            <img src={post.image} alt={post.title} className="w-24 h-24 rounded-2xl object-cover" referrerPolicy="no-referrer" />
+            <img src={post.image} alt={post.title} className="w-24 h-24 rounded-2xl object-cover" />
             <div className="flex-grow">
               <h4 className="font-serif text-lg mb-1">{post.title}</h4>
               <p className="text-xs text-neutral-400 line-clamp-2 mb-4">{post.excerpt}</p>

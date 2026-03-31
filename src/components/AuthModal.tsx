@@ -60,7 +60,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 src="/d6b549ee-a86d-4e0d-a3ec-2adc1a6ac383.jfif" 
                 alt="Pera Interior" 
                 className="absolute inset-0 w-full h-full object-cover opacity-40"
-                referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
               <div className="absolute bottom-8 left-8 right-8 text-white">
