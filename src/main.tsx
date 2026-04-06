@@ -1,3 +1,10 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App.tsx';
+import ErrorBoundary from './components/ErrorBoundary';
+import './index.css';
+
+// --- CONFIGURARE META PIXEL ---
 const FB_PIXEL_ID = '1939919056723654';
 if (typeof window !== 'undefined') {
   (window as any).fbq = (window as any).fbq || function() {
@@ -13,7 +20,6 @@ if (typeof window !== 'undefined') {
   script.async = true;
   script.src = 'https://connect.facebook.net/en_US/fbevents.js';
 
-  // Apelăm init și track DUPĂ ce scriptul s-a încărcat
   script.onload = () => {
     (window as any).fbq('init', FB_PIXEL_ID);
     (window as any).fbq('track', 'PageView');
@@ -21,3 +27,12 @@ if (typeof window !== 'undefined') {
 
   document.head.appendChild(script);
 }
+// ------------------------------
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </StrictMode>,
+);
