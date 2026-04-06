@@ -28,11 +28,11 @@ if (typeof window !== 'undefined') {
     t = b.createElement(e);
     t.async = !0;
     t.src = v;
-    s = b.getElementsByTagName(e)[0];
+    s = b.getElementsByTagName(e)[0]; // SELECTEAZA PRIMUL SCRIPT
     if (s && s.parentNode) {
       s.parentNode.insertBefore(t, s);
     }
-  })(window, document, 'script', 'https://facebook.net'); // URL CORECTAT AICI
+  })(window, document, 'script', 'https://facebook.net');
 
   window.fbq('init', FB_PIXEL_ID);
   window.fbq('track', 'PageView');
@@ -46,4 +46,3 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 );
-
