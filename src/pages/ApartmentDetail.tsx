@@ -205,7 +205,7 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         rooms: 1,
         bathrooms: 1,
         amenities: lang === 'ro' ? ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"] : ["Private bathroom", "Toiletries", "Shower", "Slippers", "Hairdryer", "Mountain view", "Safe", "Flat-screen TV", "Towels", "Bed linen", "Heating", "Wardrobe", "Air conditioning", "Fridge", "Coffee/tea maker"],
-        images: ["/peraduo-2.jpg", "/peraduo-1.jpg", "/peraduo-3.jpg", "/peraduo-4.jpg", "/peraduo-5.jpg"],
+        images: ["/peraduo-2.jpg", "/peraduo-1.jpg", "/peraduo-3.jpg", "/peraduo-4.jpg", "/peraconfort-1.jpg", "/peraconfort-5.jpg"],
         location: "Cristian, Brașov",
         slug: "peraduo",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
@@ -221,7 +221,7 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         rooms: 2,
         bathrooms: 1,
         amenities: lang === 'ro' ? ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"] : ["Private kitchenette", "Fridge", "Kitchen utensils", "Toaster", "Coffee/tea maker", "Electric kettle", "Dining area", "Private bathroom", "Toiletries", "Shower", "Slippers", "Hairdryer", "Balcony", "Mountain view", "Safe", "Flat-screen TV", "Towels", "Bed linen", "Sofa bed", "Heating", "Wardrobe", "Air conditioning"],
-        images: ["/peraconfort-7.jpg", "/peraconfort-1.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-5.jpg", "/peraconfort-6.jpg"],
+        images: ["/peraconfort-7.jpg", "/peraduo-5.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-6.jpg"],
         location: "Cristian, Brașov",
         slug: "peraconfort",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"

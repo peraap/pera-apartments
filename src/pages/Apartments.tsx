@@ -209,7 +209,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         rooms: 1,
         bathrooms: 1,
         amenities: ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"],
-        images: ["/peraduo-2.jpg", "/peraduo-1.jpg", "/peraduo-3.jpg", "/peraduo-4.jpg", "/peraduo-5.jpg"],
+        images: ["/peraduo-2.jpg", "/peraduo-1.jpg", "/peraduo-3.jpg", "/peraduo-4.jpg", "/peraconfort-1.jpg", "/peraconfort-5.jpg"],
         location: "Cristian, Brașov",
         slug: "peraduo",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
@@ -225,7 +225,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         rooms: 2,
         bathrooms: 1,
         amenities: ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"],
-        images: ["/peraconfort-7.jpg", "/peraconfort-1.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-5.jpg", "/peraconfort-6.jpg"],
+        images: ["/peraconfort-7.jpg", "/peraduo-5.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-6.jpg"],
         location: "Cristian, Brașov",
         slug: "peraconfort",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"

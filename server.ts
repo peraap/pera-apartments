@@ -17,11 +17,12 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    // Serve from public FIRST
-    app.use(express.static(path.join(__dirname, "public")));
-
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      root: process.cwd(),
+      server: { 
+        middlewareMode: true,
+        host: '0.0.0.0',
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
