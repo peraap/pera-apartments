@@ -4,7 +4,7 @@ import App from './App.tsx';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
-// --- CONFIGURARE META PIXEL (SIMPLIFICATA) ---
+// --- CONFIGURARE META PIXEL (REPARATA) ---
 declare global {
   interface Window {
     fbq: any;
@@ -15,7 +15,6 @@ declare global {
 const FB_PIXEL_ID = '1939919056723654';
 
 if (typeof window !== 'undefined') {
-  // 1. Initializam obiectul fbq
   window.fbq = window.fbq || function() {
     (window.fbq.q = window.fbq.q || []).push(arguments);
   };
@@ -25,17 +24,16 @@ if (typeof window !== 'undefined') {
   window.fbq.version = '2.0';
   window.fbq.queue = [];
 
-  // 2. Cream si inseram script-ul manual
   const script = document.createElement('script');
   script.async = true;
+  // URL-UL TREBUIE SA FIE EXACT ACESTA:
   script.src = 'https://facebook.net';
   document.head.appendChild(script);
 
-  // 3. Initializam Pixel-ul tau
   window.fbq('init', FB_PIXEL_ID);
   window.fbq('track', 'PageView');
 }
-// ---------------------------------------------
+// -----------------------------------------
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
