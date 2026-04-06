@@ -4,7 +4,6 @@ import App from './App.tsx';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
-// --- CONFIGURARE META PIXEL (REPARATA) ---
 declare global {
   interface Window {
     fbq: any;
@@ -26,14 +25,13 @@ if (typeof window !== 'undefined') {
 
   const script = document.createElement('script');
   script.async = true;
-  // URL-UL TREBUIE SA FIE EXACT ACESTA:
+  // URL-ul TREBUIE SA FIE EXACT ACESTA:
   script.src = 'https://facebook.net';
   document.head.appendChild(script);
 
   window.fbq('init', FB_PIXEL_ID);
   window.fbq('track', 'PageView');
 }
-// -----------------------------------------
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
