@@ -22,7 +22,7 @@ if (typeof window !== 'undefined') {
   const script = document.createElement('script');
   script.async = true;
   // URL-UL COMPLET ȘI CORECT:
-  script.src = 'https://connect.facebook.net';
+  script.src = 'https://connect.facebook.net/en_US/fbevents.js';
   
   // Îl adăugăm în HEAD, cea mai sigură metodă în React
   document.head.appendChild(script);
