@@ -22,8 +22,11 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+    // In development, serve from public
+    app.use(express.static(path.join(__dirname, "public")));
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    // In production, everything from public is already in dist
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

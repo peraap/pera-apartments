@@ -1,95 +1,10 @@
-@import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Inter", sans-serif;
-  --font-serif: "Inter", sans-serif;
-  --font-description: "Inter", sans-serif;
-  --font-mono: "Space Grotesk", monospace;
-  --color-primary-accent: #c5a059;
-}
-
-@layer base {
-  html {
-    scroll-behavior: smooth;
-  }
-  body {
-    @apply bg-white text-black antialiased font-sans text-[16px] selection:bg-primary-accent selection:text-white;
-  }
-  p, li, .description-text, .prose p, .prose li {
-    @apply font-sans text-[1rem] leading-relaxed font-light text-neutral-600;
-  }
-  .description-small, .amenity-item {
-    @apply font-sans text-xs leading-relaxed font-medium text-neutral-500 tracking-wide;
-  }
-  .dark p, .dark li, .dark .description-text, section.bg-neutral-900 p, section.bg-neutral-900 li {
-    @apply text-neutral-400/90;
-  }
-  span:not(.font-display):not(.font-mono), div:not(.font-display):not(.font-mono) {
-    @apply tracking-tight;
-  }
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display tracking-tight text-neutral-900 font-semibold;
-  }
-  h1, h2 {
-    @apply tracking-tighter font-semibold leading-[1.1];
-  }
-}
-
-* {
-  @apply transition-colors duration-300;
-}
-
-.prose h1, .prose h2, .prose h3, .prose h4 {
-  @apply font-display;
-}
-
-/* Elegant Text Accents */
-.text-accent {
-  @apply font-display italic font-light opacity-80;
-}
-
-.tracking-elegant {
-  letter-spacing: 0.15em;
-}
-
-.tracking-ultra-elegant {
-  letter-spacing: 0.3em;
-}
-
-.font-display-light {
-  @apply font-display font-light;
-}
-
-/* Smooth reveal animations */
-.reveal-text {
-  @apply overflow-hidden inline-block;
-}
-
-/* Modern Glassmorphism */
-.glass {
-  @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl;
-}
-
-.glass-dark {
-  @apply bg-black/40 backdrop-blur-lg border border-white/10 shadow-2xl;
-}
-
-/* Interactive Cards */
-.card-hover {
-  @apply transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl;
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-neutral-50;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-neutral-200 rounded-full hover:bg-neutral-300 transition-colors;
+{
+  "projectId": "gen-lang-client-0517351691",
+  "appId": "1:878798025255:web:a80add1ae3e302e5dc9402",
+  "apiKey": "AIzaSyA5mfW-S0gN29Kys4r_rDmn_78eIpOn9VE",
+  "authDomain": "gen-lang-client-0517351691.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-f4227c81-cc11-4beb-bdb1-e70aa33734a0",
+  "storageBucket": "gen-lang-client-0517351691.firebasestorage.app",
+  "messagingSenderId": "878798025255",
+  "measurementId": ""
 }

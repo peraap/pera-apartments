@@ -197,6 +197,38 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         location: "Cristian, Brașov",
         slug: "apartament-family-standard",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+      },
+      {
+        id: '5',
+        name: "PeraDuo",
+        shortDescription: lang === 'ro' ? "Rafinament și intimitate pentru două persoane." : "Refinement and intimacy for two people.",
+        description: lang === 'ro' ? "PeraDuo oferă un spațiu modern și primitor, perfect pentru cupluri care caută confort și relaxare într-un cadru elegant." : "PeraDuo offers a modern and welcoming space, perfect for couples seeking comfort and relaxation in an elegant setting.",
+        pricePerNight: 365,
+        originalPrice: 405,
+        capacity: 2,
+        rooms: 1,
+        bathrooms: 1,
+        amenities: ["Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Încălzire", "Garderobă", "Aer condiționat", "Frigider", "Aparat cafea/ceai"],
+        images: ["/peraduo-2.jpg", "/peraduo-1.jpg", "/peraduo-3.jpg", "/peraduo-4.jpg", "/peraduo-5.jpg"],
+        location: "Cristian, Brașov",
+        slug: "peraduo",
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+      },
+      {
+        id: '6',
+        name: "PeraConfort",
+        shortDescription: lang === 'ro' ? "Spațiu generos și confort maxim pentru grupuri sau familii." : "Generous space and maximum comfort for groups or families.",
+        description: lang === 'ro' ? "PeraConfort este alegerea ideală pentru cei care călătoresc în grup sau cu familia, oferind toate dotările necesare pentru un sejur relaxant și lipsit de griji." : "PeraConfort is the ideal choice for those traveling in groups or with family, offering all the necessary amenities for a relaxing and worry-free stay.",
+        pricePerNight: 324,
+        originalPrice: 360,
+        capacity: 4,
+        rooms: 2,
+        bathrooms: 1,
+        amenities: ["Chicinetă privată", "Frigider", "Ustensile bucătărie", "Prăjitor pâine", "Aparat cafea/ceai", "Cană fierbător", "Zonă luat masa", "Baie privată", "Articole toaletă", "Duș", "Papuci", "Uscător păr", "Balcon", "Vedere munte", "Seif", "TV ecran plat", "Prosoape", "Lenjerie pat", "Canapea extensibilă", "Încălzire", "Garderobă", "Aer condiționat"],
+        images: ["/peraconfort-7.jpg", "/peraconfort-1.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-5.jpg", "/peraconfort-6.jpg"],
+        location: "Cristian, Brașov",
+        slug: "peraconfort",
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
       }
     ];
 
