@@ -1,14 +1,5 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import ErrorBoundary from './components/ErrorBoundary';
-import './index.css';
-
-// --- CONFIGURARE META PIXEL (REPARATA) ---
 const FB_PIXEL_ID = '1939919056723654';
-
 if (typeof window !== 'undefined') {
-  // 1. Inițializăm obiectul fbq fără erori de sintaxă
   (window as any).fbq = (window as any).fbq || function() {
     ((window as any).fbq.q = (window as any).fbq.q || []).push(arguments);
   };
@@ -18,25 +9,15 @@ if (typeof window !== 'undefined') {
   (window as any).fbq.version = '2.0';
   (window as any).fbq.queue = [];
 
-  // 2. Creăm elementul script manual pentru a evita eroarea "insertBefore"
   const script = document.createElement('script');
   script.async = true;
-  // URL-UL COMPLET ȘI CORECT:
   script.src = 'https://connect.facebook.net/en_US/fbevents.js';
-  
-  // Îl adăugăm în HEAD, cea mai sigură metodă în React
+
+  // Apelăm init și track DUPĂ ce scriptul s-a încărcat
+  script.onload = () => {
+    (window as any).fbq('init', FB_PIXEL_ID);
+    (window as any).fbq('track', 'PageView');
+  };
+
   document.head.appendChild(script);
-
-  // 3. Activăm Pixel-ul
-  (window as any).fbq('init', FB_PIXEL_ID);
-  (window as any).fbq('track', 'PageView');
 }
-// ----------------------------------------
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </StrictMode>,
-);
