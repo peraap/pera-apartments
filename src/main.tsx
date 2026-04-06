@@ -29,8 +29,10 @@ if (typeof window !== 'undefined') {
     t.async = !0;
     t.src = v;
     s = b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t, s);
-  })(window, document, 'script', 'https://facebook.net');
+    if (s && s.parentNode) {
+      s.parentNode.insertBefore(t, s);
+    }
+  })(window, document, 'script', 'https://facebook.net'); // URL CORECTAT AICI
 
   window.fbq('init', FB_PIXEL_ID);
   window.fbq('track', 'PageView');
