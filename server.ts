@@ -17,13 +17,14 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    // Serve from public FIRST
+    app.use(express.static(path.join(__dirname, "public")));
+
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-    // In development, serve from public
-    app.use(express.static(path.join(__dirname, "public")));
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     // In production, everything from public is already in dist
