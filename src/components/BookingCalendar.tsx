@@ -116,7 +116,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
 
       // 2. Create Stripe Checkout Session
       console.log('Creating checkout session...');
-      const response = await fetch('/api/create-checkout-session', {
+      const response = await fetch(`${window.location.origin}/api/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

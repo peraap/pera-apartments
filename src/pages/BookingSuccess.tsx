@@ -34,7 +34,7 @@ const BookingSuccess: React.FC = () => {
       }
 
       // 2. Verify with server
-      const response = await fetch('/api/verify-booking', {
+      const response = await fetch(`${window.location.origin}/api/verify-booking`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId }),
