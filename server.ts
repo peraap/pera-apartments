@@ -19,6 +19,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // 1. CORS & JSON Parsing (Must be first)
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -26,28 +27,16 @@ async function startServer() {
   }));
   app.use(express.json());
 
-  // Request logger
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url}`);
-    next();
-  });
-
-  // API Router
-  const apiRouter = express.Router();
-
-  apiRouter.get("/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
-
-  apiRouter.post("/create-checkout-session", async (req, res) => {
+  // 2. API ROUTES (Defined directly on app for maximum priority)
+  app.post("/api/create-checkout-session", async (req, res) => {
+    console.log(`[${new Date().toISOString()}] POST /api/create-checkout-session`);
     try {
       const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
 
-      console.log(`Creating session for ${apartmentName}`);
-
       if (!process.env.STRIPE_SECRET_KEY) {
+        console.error("ERROR: STRIPE_SECRET_KEY is missing in production environment!");
         return res.status(500).json({ 
-          error: "STRIPE_SECRET_KEY is missing in server environment." 
+          error: "Configurația Stripe lipsește pe server. Te rugăm să adaugi STRIPE_SECRET_KEY în setările de deploy." 
         });
       }
 
@@ -84,6 +73,7 @@ async function startServer() {
         },
       });
 
+      console.log("Session created successfully:", session.id);
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {
       console.error("Stripe Error:", error);
@@ -91,11 +81,10 @@ async function startServer() {
     }
   });
 
-  apiRouter.post("/verify-booking", async (req, res) => {
+  app.post("/api/verify-booking", async (req, res) => {
     try {
       const { sessionId } = req.body;
       if (!sessionId) return res.status(400).json({ error: "Session ID missing" });
-
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       res.json({ 
         status: session.payment_status === "paid" ? "success" : "pending", 
@@ -106,9 +95,11 @@ async function startServer() {
     }
   });
 
-  app.use("/api", apiRouter);
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", env: process.env.NODE_ENV });
+  });
 
-  // Vite middleware for development
+  // 3. VITE / STATIC FILES (Must be after API)
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       root: process.cwd(),
