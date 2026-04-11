@@ -43,7 +43,10 @@ service cloud.firestore {
     }
 
     function isValidDateString(dateStr) {
-      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+      return dateStr is string && (
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$") ||
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$")
+      );
     }
 
     function isOwner(userId) {
@@ -75,7 +78,25 @@ service cloud.firestore {
              isValidDateString(data.checkIn) &&
              isValidDateString(data.checkOut) &&
              data.totalPrice is number &&
-             data.status in ['pending', 'confirmed', 'cancelled'];
+             data.status in ['pending', 'confirmed', 'cancelled'] &&
+             (!('guestEmail' in data) || isValidEmail(data.guestEmail)) &&
+             (!('stripeSessionId' in data) || data.stripeSessionId is string);
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['name', 'email', 'subject', 'message']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() < 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 5000 &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll(['name', 'email']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             (!('createdAt' in data) || isValidDateString(data.createdAt));
     }
 
     // ===============================================================
@@ -89,7 +110,7 @@ service cloud.firestore {
 
     match /bookings/{bookingId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.guestEmail == request.auth.token.email);
-      allow create: if isValidBooking(request.resource.data);
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data);
       allow update, delete: if isAdmin();
     }
 
@@ -106,6 +127,16 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow create: if isValidMessage(request.resource.data);
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /leads/{leadId} {
+      allow create: if isValidLead(request.resource.data);
+      allow read, update, delete: if isAdmin();
     }
 
     match /users/{userId} {

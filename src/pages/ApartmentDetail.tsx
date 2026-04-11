@@ -24,6 +24,7 @@ import { useAuth } from '../AuthContext';
 import { AuthModal } from '../components/AuthModal';
 import { Apartment } from '../types';
 import { toast } from 'sonner';
+import { BookingCalendar } from '../components/BookingCalendar';
 
 const detailTranslations = {
   ro: {
@@ -386,41 +387,44 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
 
           {/* Booking Sidebar */}
           <div className="lg:col-span-1">
-            <div className="sticky top-24 bg-white border-2 border-neutral-900 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] rounded-none p-8">
-              <div className="flex justify-between items-end mb-8">
-                <div>
-                  {apartment.originalPrice && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base text-red-500 line-through font-bold">{apartment.originalPrice} lei</span>
-                      <span className="bg-red-500 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest">
-                        OFFER
-                      </span>
+            <div className="sticky top-24">
+              <div className="mb-8 bg-white border-2 border-neutral-900 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] p-8">
+                <div className="flex justify-between items-end mb-4">
+                  <div>
+                    {apartment.originalPrice && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base text-red-500 line-through font-bold">{apartment.originalPrice} lei</span>
+                        <span className="bg-red-500 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest">
+                          OFFER
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-black text-neutral-900">{apartment.pricePerNight}</span>
+                      <span className="text-xl font-black text-neutral-900">lei</span>
                     </div>
-                  )}
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black text-neutral-900">{apartment.pricePerNight}</span>
-                    <span className="text-xl font-black text-neutral-900">lei</span>
+                    <span className="text-neutral-400 text-xs uppercase font-black tracking-widest block mt-1">/ {t.pricePerNight}</span>
                   </div>
-                  <span className="text-neutral-400 text-xs uppercase font-black tracking-widest block mt-1">/ {t.pricePerNight}</span>
+                </div>
+
+                <div className="pt-4 border-t border-neutral-100">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-4">Sau rezervă prin</p>
+                  <a 
+                    href={apartment.bookingUrl || "https://www.booking.com/Share-vCX4Bz"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-neutral-100 text-neutral-900 py-4 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-neutral-200 transition-all flex items-center justify-center gap-2"
+                  >
+                    Booking.com
+                  </a>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <p className="text-sm font-bold text-neutral-700 leading-relaxed">
-                  {lang === 'ro' 
-                    ? "Rezervările se fac prin Booking.com pentru siguranță maximă."
-                    : "Bookings are handled via Booking.com for maximum security."}
-                </p>
-
-                <a 
-                  href={apartment.bookingUrl || "https://www.booking.com/Share-vCX4Bz"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full bg-black text-white py-5 text-xs font-black uppercase tracking-[0.3em] hover:bg-neutral-800 transition-all flex items-center justify-center"
-                >
-                  {lang === 'ro' ? "REZERVĂ ACUM" : "BOOK NOW"}
-                </a>
-              </div>
+              <BookingCalendar 
+                apartmentId={apartment.id} 
+                apartmentName={apartment.name} 
+                pricePerNight={apartment.pricePerNight} 
+              />
             </div>
           </div>
         </div>

@@ -34,6 +34,8 @@ const Contact = lazy(() => import('./pages/Contact'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Legal = lazy(() => import('./pages/Legal'));
 const Auth = lazy(() => import('./pages/Auth'));
+const BookingSuccess = lazy(() => import('./pages/BookingSuccess'));
+import { DiscountPopup } from './components/DiscountPopup';
 
 const translations = {
   ro: {
@@ -246,14 +248,12 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
               </button>
             </div>
 
-            <a 
-              href={bookingLink}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link 
+              to="/apartamente"
               className={`px-8 py-3 rounded-full text-sm font-bold tracking-tight transition-all duration-500 ${scrolled ? 'bg-black text-white hover:bg-neutral-800 shadow-lg shadow-black/10' : 'bg-white text-black hover:bg-neutral-100'}`}
             >
               {t.reserve}
-            </a>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -320,14 +320,13 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                   Login
                 </Link>
               )}
-              <a 
-                href={bookingLink}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link 
+                to="/apartamente"
+                onClick={() => setIsOpen(false)}
                 className="w-full text-center bg-black text-white py-4 rounded-full font-bold tracking-tight"
               >
                 {t.reserve}
-              </a>
+              </Link>
             </div>
           </motion.div>
         )}
@@ -490,10 +489,12 @@ export default function App() {
                 <Route path="/login" element={<Auth lang={lang} />} />
                 <Route path="/admin/*" element={<Admin />} />
                 <Route path="/legal/:type" element={<Legal lang={lang} />} />
+                <Route path="/booking-success" element={<BookingSuccess />} />
               </Routes>
             </Suspense>
           </main>
           <Footer lang={lang} />
+          <DiscountPopup />
           <Toaster position="top-center" />
         </div>
       </Router>

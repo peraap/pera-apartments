@@ -95,6 +95,31 @@
         "instagramUrl": { "type": "string" },
         "facebookUrl": { "type": "string" }
       }
+    },
+    "message": {
+      "title": "Contact Message",
+      "description": "A message sent via the contact form.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "subject", "message"]
+    },
+    "lead": {
+      "title": "Lead",
+      "description": "A potential customer captured via the discount popup.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "source": { "type": "string" }
+      },
+      "required": ["name", "email"]
     }
   },
   "firestore": {
@@ -121,6 +146,14 @@
     "/settings/global": {
       "schema": "siteSettings",
       "description": "Global site configuration."
+    },
+    "/messages/{messageId}": {
+      "schema": "message",
+      "description": "Collection of contact form messages."
+    },
+    "/leads/{leadId}": {
+      "schema": "lead",
+      "description": "Collection of captured leads for marketing."
     }
   }
 }

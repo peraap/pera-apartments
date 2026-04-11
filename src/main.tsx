@@ -1,33 +1,8 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
-
-// --- CONFIGURARE META PIXEL ---
-const FB_PIXEL_ID = '1939919056723654';
-if (typeof window !== 'undefined') {
-  (window as any).fbq = (window as any).fbq || function() {
-    ((window as any).fbq.q = (window as any).fbq.q || []).push(arguments);
-  };
-  (window as any)._fbq = (window as any)._fbq || (window as any).fbq;
-  (window as any).fbq.push = (window as any).fbq;
-  (window as any).fbq.loaded = true;
-  (window as any).fbq.version = '2.0';
-  (window as any).fbq.queue = [];
-
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = 'https://connect.facebook.net/en_US/fbevents.js';
-
-  script.onload = () => {
-    (window as any).fbq('init', FB_PIXEL_ID);
-    (window as any).fbq('track', 'PageView');
-  };
-
-  document.head.appendChild(script);
-}
-// ------------------------------
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -20,7 +20,7 @@ const homeTranslations = {
   ro: {
     heroSub: "Experiență Unică la Poalele Postăvarului",
     heroTitle: "Acasă, departe de ",
-    heroTitleItalic: "acasă.",
+    heroTitleItalic: "casă.",
     heroBtnApts: "Vezi Apartamentele",
     heroBtnContact: "Contactează-ne",
     feat1Title: "Wi-Fi Ultra-Rapid",

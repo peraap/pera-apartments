@@ -81,6 +81,44 @@
   @apply transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl;
 }
 
+/* Calendar Overrides for react-day-picker v9 */
+.rdp-root {
+  --rdp-accent-color: #000000 !important;
+  --rdp-accent-background-color: #000000 !important;
+  --rdp-range_middle-background-color: rgba(0, 0, 0, 0.1) !important;
+  --rdp-range_middle-color: #000000 !important;
+  --rdp-range_start-background-color: #000000 !important;
+  --rdp-range_start-color: #ffffff !important;
+  --rdp-range_end-background-color: #000000 !important;
+  --rdp-range_end-color: #ffffff !important;
+  --rdp-day-height: 40px;
+  --rdp-day-width: 40px;
+}
+
+.rdp-selected {
+  background-color: black !important;
+  color: white !important;
+}
+
+.rdp-range_start {
+  background-color: black !important;
+  color: white !important;
+  border-top-left-radius: 9999px !important;
+  border-bottom-left-radius: 9999px !important;
+}
+
+.rdp-range_end {
+  background-color: black !important;
+  color: white !important;
+  border-top-right-radius: 9999px !important;
+  border-bottom-right-radius: 9999px !important;
+}
+
+.rdp-range_middle {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+  color: black !important;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
