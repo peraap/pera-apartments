@@ -27,19 +27,29 @@ async function startServer() {
     try {
       const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
 
+      console.log(`Attempting to create checkout session for ${apartmentName} (${apartmentId})`);
+
       if (!process.env.STRIPE_SECRET_KEY) {
-        console.error("Missing STRIPE_SECRET_KEY");
-        return res.status(500).json({ error: "Configurația Stripe lipsește (Secret Key)." });
+        console.error("CRITICAL: STRIPE_SECRET_KEY is not defined in environment variables.");
+        return res.status(500).json({ 
+          error: "Configurația Stripe lipsește. Te rugăm să adaugi STRIPE_SECRET_KEY în setările aplicației (Settings > Secrets)." 
+        });
       }
 
-      if (!totalPrice || totalPrice <= 0) {
-        return res.status(400).json({ error: "Prețul total este invalid." });
+      if (!totalPrice || isNaN(Number(totalPrice)) || totalPrice <= 0) {
+        console.error("Invalid totalPrice:", totalPrice);
+        return res.status(400).json({ error: "Prețul total este invalid sau lipsește." });
+      }
+
+      if (!apartmentName) {
+        return res.status(400).json({ error: "Numele apartamentului lipsește." });
       }
 
       const protocol = req.headers['x-forwarded-proto'] || 'http';
       const host = req.headers.host;
       const origin = req.headers.origin || `${protocol}://${host}`;
 
+      console.log("Creating Stripe session...");
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [

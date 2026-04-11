@@ -130,12 +130,21 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Eroare la server.');
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON response received:", text);
+        throw new Error(`Eroare server (${response.status}). Te rugăm să verifici configurația Stripe.`);
       }
 
-      const session = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Eroare la server.');
+      }
+
+      const session = data;
       console.log('Session created:', session.id);
 
       if (session.url) {
