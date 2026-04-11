@@ -19,47 +19,42 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
   app.use(express.json());
 
   // Request logger
   app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log(`${req.method} ${req.url}`);
     next();
   });
 
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  // API Router
+  const apiRouter = express.Router();
+
+  apiRouter.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  app.post("/api/create-checkout-session", async (req, res) => {
+  apiRouter.post("/create-checkout-session", async (req, res) => {
     try {
       const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
 
-      console.log(`Attempting to create checkout session for ${apartmentName} (${apartmentId})`);
+      console.log(`Creating session for ${apartmentName}`);
 
       if (!process.env.STRIPE_SECRET_KEY) {
-        console.error("CRITICAL: STRIPE_SECRET_KEY is not defined in environment variables.");
         return res.status(500).json({ 
-          error: "Configurația Stripe lipsește. Te rugăm să adaugi STRIPE_SECRET_KEY în setările aplicației (Settings > Secrets)." 
+          error: "STRIPE_SECRET_KEY is missing in server environment." 
         });
-      }
-
-      if (!totalPrice || isNaN(Number(totalPrice)) || totalPrice <= 0) {
-        console.error("Invalid totalPrice:", totalPrice);
-        return res.status(400).json({ error: "Prețul total este invalid sau lipsește." });
-      }
-
-      if (!apartmentName) {
-        return res.status(400).json({ error: "Numele apartamentului lipsește." });
       }
 
       const protocol = req.headers['x-forwarded-proto'] || 'http';
       const host = req.headers.host;
       const origin = req.headers.origin || `${protocol}://${host}`;
 
-      console.log("Creating Stripe session...");
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -92,30 +87,26 @@ async function startServer() {
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {
       console.error("Stripe Error:", error);
-      res.status(500).json({ error: error.message || "Eroare la crearea sesiunii de plată." });
+      res.status(500).json({ error: error.message || "Eroare Stripe." });
     }
   });
 
-  app.post("/api/verify-booking", async (req, res) => {
+  apiRouter.post("/verify-booking", async (req, res) => {
     try {
       const { sessionId } = req.body;
       if (!sessionId) return res.status(400).json({ error: "Session ID missing" });
 
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (session.payment_status !== "paid") {
-        return res.status(400).json({ error: "Plata nu a fost finalizată." });
-      }
-
       res.json({ 
-        status: "success", 
-        metadata: session.metadata,
-        customer_email: session.customer_details?.email 
+        status: session.payment_status === "paid" ? "success" : "pending", 
+        metadata: session.metadata 
       });
     } catch (error: any) {
-      console.error("Verification Error:", error);
       res.status(500).json({ error: error.message });
     }
   });
+
+  app.use("/api", apiRouter);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
