@@ -16,6 +16,21 @@ const firebaseConfig = {
   "measurementId": ""
 };
 
+const app = express();
+
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    vercel: true,
+    stripeKey: !!process.env.STRIPE_SECRET_KEY,
+    gmailUser: !!process.env.GMAIL_USER,
+    gmailPass: !!process.env.GMAIL_APP_PASSWORD,
+    webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+    dbInitialized: !!db,
+    transporterInitialized: !!transporter
+  });
+});
+
 let firebaseApp: any;
 let db: any;
 
@@ -26,7 +41,6 @@ try {
   console.error("Firebase initialization failed:", error);
 }
 
-const app = express();
 let stripe: Stripe;
 
 try {
@@ -310,19 +324,6 @@ app.post("/api/send-confirmation-email", async (req, res) => {
     console.error("Error sending manual confirmation:", error);
     res.status(500).json({ error: error.message });
   }
-});
-
-app.get("/api/health", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    vercel: true,
-    stripeKey: !!process.env.STRIPE_SECRET_KEY,
-    gmailUser: !!process.env.GMAIL_USER,
-    gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-    webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-    dbInitialized: !!db,
-    transporterInitialized: !!transporter
-  });
 });
 
 export default app;
