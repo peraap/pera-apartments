@@ -1,13 +1,20 @@
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
-import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc } from "firebase/firestore";
-import { firebaseConfig } from "../src/firebase-config";
 
-dotenv.config();
+const firebaseConfig = {
+  "projectId": "gen-lang-client-0517351691",
+  "appId": "1:878798025255:web:a80add1ae3e302e5dc9402",
+  "apiKey": "AIzaSyA5mfW-S0gN29Kys4r_rDmn_78eIpOn9VE",
+  "authDomain": "gen-lang-client-0517351691.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-f4227c81-cc11-4beb-bdb1-e70aa33734a0",
+  "storageBucket": "gen-lang-client-0517351691.firebasestorage.app",
+  "messagingSenderId": "878798025255",
+  "measurementId": ""
+};
 
 let firebaseApp: any;
 let db: any;
@@ -28,14 +35,19 @@ try {
   console.error("Stripe initialization failed:", error);
 }
 
-// Nodemailer Transporter for Gmail
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER || 'contact.peraapartments@gmail.com',
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+let transporter: any;
+
+try {
+  transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER || 'contact.peraapartments@gmail.com',
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+} catch (error) {
+  console.error("Nodemailer initialization failed:", error);
+}
 
 app.use(cors({
   origin: '*',
@@ -101,6 +113,9 @@ app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, 
         console.log(`[Webhook] Attempting to send confirmation email to: ${recipients.join(', ')}`);
         
         try {
+          if (!transporter) {
+            throw new Error("Transporter is not initialized");
+          }
           await transporter.sendMail({
             from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
             to: recipients,
@@ -152,6 +167,9 @@ app.use(express.json());
       return res.status(500).json({ error: "Configurația de email lipsește pe server." });
     }
 
+    if (!transporter) {
+      throw new Error("Transporter is not initialized");
+    }
     await transporter.sendMail({
       from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
       to: email,
@@ -192,6 +210,9 @@ app.post("/api/create-checkout-session", async (req, res) => {
     const host = req.headers.host;
     const origin = `${protocol}://${host}`;
 
+    if (!stripe) {
+      throw new Error("Stripe is not initialized");
+    }
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -234,6 +255,9 @@ app.post("/api/verify-booking", async (req, res) => {
   try {
     const { sessionId } = req.body;
     if (!sessionId) return res.status(400).json({ error: "Session ID missing" });
+    if (!stripe) {
+      throw new Error("Stripe is not initialized");
+    }
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     res.json({ 
       status: session.payment_status === "paid" ? "success" : "pending", 
@@ -253,6 +277,9 @@ app.post("/api/send-confirmation-email", async (req, res) => {
 
     const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com', metadata.guestEmail];
     
+    if (!transporter) {
+      throw new Error("Transporter is not initialized");
+    }
     await transporter.sendMail({
       from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
       to: recipients,
@@ -293,7 +320,8 @@ app.get("/api/health", (req, res) => {
     gmailUser: !!process.env.GMAIL_USER,
     gmailPass: !!process.env.GMAIL_APP_PASSWORD,
     webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-    dbInitialized: !!db
+    dbInitialized: !!db,
+    transporterInitialized: !!transporter
   });
 });
 
