@@ -137,7 +137,8 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
       } else {
         const text = await response.text();
         console.error("Non-JSON response received:", text);
-        throw new Error(`Eroare server (${response.status}). Te rugăm să verifici configurația Stripe.`);
+        // Show the first 100 characters of the response to help debug
+        throw new Error(`Eroare server (${response.status}): ${text.substring(0, 100)}...`);
       }
 
       if (!response.ok) {

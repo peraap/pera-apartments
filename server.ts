@@ -15,8 +15,15 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || '(default)');
+let firebaseApp: any;
+let db: any;
+
+try {
+  firebaseApp = initializeApp(firebaseConfig);
+  db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || '(default)');
+} catch (error) {
+  console.error("Firebase initialization failed:", error);
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
@@ -67,21 +74,25 @@ async function startServer() {
         const metadata = session.metadata;
         if (metadata) {
           // 1. Save to Firestore
-          await addDoc(collection(db, 'bookings'), {
-            apartmentId: metadata.apartmentId,
-            apartmentName: metadata.apartmentName || 'Apartament Pera',
-            checkIn: metadata.checkIn,
-            checkOut: metadata.checkOut,
-            guestName: metadata.guestName,
-            guestEmail: metadata.guestEmail,
-            totalPrice: parseFloat(metadata.totalPrice),
-            status: 'confirmed',
-            paymentIntentId: session.payment_intent as string,
-            sessionId: session.id,
-            createdAt: new Date().toISOString(),
-            source: 'stripe_webhook_preview'
-          });
-          console.log(`Booking saved for session ${session.id}`);
+          if (db) {
+            await addDoc(collection(db, 'bookings'), {
+              apartmentId: metadata.apartmentId,
+              apartmentName: metadata.apartmentName || 'Apartament Pera',
+              checkIn: metadata.checkIn,
+              checkOut: metadata.checkOut,
+              guestName: metadata.guestName,
+              guestEmail: metadata.guestEmail,
+              totalPrice: parseFloat(metadata.totalPrice),
+              status: 'confirmed',
+              paymentIntentId: session.payment_intent as string,
+              sessionId: session.id,
+              createdAt: new Date().toISOString(),
+              source: 'stripe_webhook_preview'
+            });
+            console.log(`Booking saved for session ${session.id}`);
+          } else {
+            console.error("Firestore database is not initialized. Booking not saved.");
+          }
 
           // 2. Send Confirmation Email
           const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
@@ -279,6 +290,18 @@ async function startServer() {
       console.error("Error sending manual confirmation:", error);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      env: process.env.NODE_ENV,
+      stripeKey: !!process.env.STRIPE_SECRET_KEY,
+      gmailUser: !!process.env.GMAIL_USER,
+      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      dbInitialized: !!db
+    });
   });
 
   // 3. VITE / STATIC FILES (Must be after API)
