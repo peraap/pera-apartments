@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc } from "firebase/firestore";
-import firebaseConfig from "../firebase-applet-config.json";
+import { firebaseConfig } from "../src/firebase-config";
 
 dotenv.config();
 
@@ -20,7 +20,13 @@ try {
 }
 
 const app = express();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
+let stripe: Stripe;
+
+try {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
+} catch (error) {
+  console.error("Stripe initialization failed:", error);
+}
 
 // Nodemailer Transporter for Gmail
 const transporter = nodemailer.createTransport({
@@ -45,6 +51,9 @@ app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, 
   let event;
 
   try {
+    if (!stripe) {
+      throw new Error("Stripe is not initialized");
+    }
     if (!webhookSecret) {
       throw new Error("STRIPE_WEBHOOK_SECRET is missing");
     }
