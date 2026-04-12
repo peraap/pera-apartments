@@ -12,30 +12,35 @@ export const DiscountPopup: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const hasSeenPopup = localStorage.getItem('pera_discount_popup_seen');
-    if (!hasSeenPopup) {
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 3000); // Show after 3 seconds
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      setIsOpen(true);
+    }, 3000); // Show after 3 seconds
+    return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('pera_discount_popup_seen', 'true');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      // 1. Save to Firestore
       await addDoc(collection(db, 'leads'), {
         name,
         email,
         source: 'discount_popup_april_2026',
         createdAt: new Date().toISOString(),
       });
+
+      // 2. Send Email via Backend
+      await fetch('/api/send-discount-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name }),
+      });
+
       toast.success('Codul de reducere a fost trimis pe email!');
       handleClose();
     } catch (error) {

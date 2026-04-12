@@ -62,6 +62,17 @@ const BookingSuccess: React.FC = () => {
 
       await addDoc(collection(db, 'bookings'), bookingData);
       
+      // 4. Trigger manual email as fallback
+      try {
+        await fetch(`${window.location.origin}/api/send-confirmation-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metadata }),
+        });
+      } catch (emailErr) {
+        console.error('Manual email fallback failed:', emailErr);
+      }
+      
       setBookingDetails(bookingData);
       setStatus('success');
       toast.success('Rezervare confirmată și salvată!');
