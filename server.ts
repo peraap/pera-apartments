@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || '(default)');
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
 // Nodemailer Transporter for Gmail
 const transporter = nodemailer.createTransport({
@@ -176,7 +176,7 @@ async function startServer() {
     try {
       const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
 
-      if (!process.env.STRIPE_SECRET_KEY) {
+      if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === "sk_test_placeholder") {
         console.error("ERROR: STRIPE_SECRET_KEY is missing in production environment!");
         return res.status(500).json({ 
           error: "Configurația Stripe lipsește pe server. Te rugăm să adaugi STRIPE_SECRET_KEY în setările de deploy." 

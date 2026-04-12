@@ -13,7 +13,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || '(default)');
 
 const app = express();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
 // Nodemailer Transporter for Gmail
 const transporter = nodemailer.createTransport({
@@ -164,8 +164,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
 
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return res.status(500).json({ error: "STRIPE_SECRET_KEY is missing." });
+    if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === "sk_test_placeholder") {
+      return res.status(500).json({ error: "Configurația Stripe lipsește (STRIPE_SECRET_KEY)." });
     }
 
     const protocol = req.headers['x-forwarded-proto'] || 'http';
@@ -220,6 +220,47 @@ app.post("/api/verify-booking", async (req, res) => {
       metadata: session.metadata 
     });
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/send-confirmation-email", async (req, res) => {
+  try {
+    const { metadata } = req.body;
+    if (!metadata || !metadata.guestEmail) {
+      return res.status(400).json({ error: "Date insuficiente pentru email." });
+    }
+
+    const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com', metadata.guestEmail];
+    
+    await transporter.sendMail({
+      from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
+      to: recipients,
+      subject: 'Confirmare Rezervare - Pera Apartments',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #000;">Rezervare Confirmată!</h2>
+          <p>Salut, <strong>${metadata.guestName || 'Oaspete'}</strong>,</p>
+          <p>Rezervarea ta la <strong>Pera Apartments</strong> a fost confirmată.</p>
+          
+          <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333;">Detalii Rezervare:</h3>
+            <p><strong>Apartament:</strong> ${metadata.apartmentName || 'Apartament Pera'}</p>
+            <p><strong>Check-in:</strong> ${metadata.checkIn}</p>
+            <p><strong>Check-out:</strong> ${metadata.checkOut}</p>
+            <p><strong>Total:</strong> ${metadata.totalPrice} RON</p>
+          </div>
+          
+          <p>Te așteptăm cu drag!</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 12px; color: #888;">Pera Apartments - Cristian, Brașov</p>
+        </div>
+      `,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error sending manual confirmation:", error);
     res.status(500).json({ error: error.message });
   }
 });
