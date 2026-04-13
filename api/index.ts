@@ -109,7 +109,7 @@ app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, 
             totalPrice: parseFloat(metadata.totalPrice),
             status: 'confirmed',
             paymentIntentId: session.payment_intent as string,
-            sessionId: session.id,
+            stripeSessionId: session.id,
             createdAt: new Date().toISOString(),
             source: 'stripe_webhook'
           });

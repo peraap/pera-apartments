@@ -80,7 +80,8 @@ service cloud.firestore {
              data.totalPrice is number &&
              data.status in ['pending', 'confirmed', 'cancelled'] &&
              (!('guestEmail' in data) || isValidEmail(data.guestEmail)) &&
-             (!('stripeSessionId' in data) || data.stripeSessionId is string);
+             (!('stripeSessionId' in data) || data.stripeSessionId is string) &&
+             (!('sessionId' in data) || data.sessionId is string);
     }
 
     function isValidMessage(data) {
@@ -109,8 +110,10 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.guestEmail == request.auth.token.email);
-      allow create: if isAuthenticated() && isValidBooking(request.resource.data);
+      allow read: if isAdmin() || 
+                  (isAuthenticated() && resource.data.guestEmail == request.auth.token.email) ||
+                  (resource.data.stripeSessionId != null || resource.data.sessionId != null || resource.data.status in ['confirmed', 'pending']);
+      allow create: if isValidBooking(request.resource.data);
       allow update, delete: if isAdmin();
     }
 
