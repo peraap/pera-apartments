@@ -178,7 +178,7 @@ async function startServer() {
             <p>Folosește acest cod la finalizarea rezervării pe site-ul nostru pentru a beneficia de <strong>20% reducere</strong>.</p>
             <p>Te așteptăm cu drag!</p>
             <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 12px; color: #888;">Oferta este valabilă până pe 15 aprilie 2026.</p>
+            <p style="font-size: 12px; color: #888;">Oferta este valabilă până pe 30 aprilie 2026.</p>
           </div>
         `,
       });

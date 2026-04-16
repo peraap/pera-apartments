@@ -85,7 +85,7 @@ export const DiscountPopup: React.FC = () => {
                   Reducere <span className="text-neutral-400">20%</span>
                 </h2>
                 <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest leading-relaxed">
-                  Beneficiază de reducere 20% până pe 15 aprilie 2026. Înscrie-te acum!
+                  Beneficiază de reducere 20% până pe 30 aprilie 2026. Înscrie-te acum!
                 </p>
               </div>
 
