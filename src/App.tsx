@@ -133,7 +133,12 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
 
           <div className="hidden md:flex items-center space-x-10">
             {navLinks.map((link, i) => (
-              <SmoothIn key={link.path} direction="down" delay={i * 0.1}>
+              <motion.div
+                key={link.path}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+              >
                 <Magnetic>
                   <Link 
                     to={link.path}
@@ -142,11 +147,15 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                     {link.name}
                   </Link>
                 </Magnetic>
-              </SmoothIn>
+              </motion.div>
             ))}
 
             {/* Info Dropdown */}
-            <SmoothIn direction="down" delay={0.2}>
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               <div className="relative group/info" onMouseEnter={() => setIsInfoOpen(true)} onMouseLeave={() => setIsInfoOpen(false)}>
                 <button className={`flex items-center text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${isHeaderSolid ? 'text-black' : 'text-white'}`}>
                   {t.info}
@@ -173,10 +182,14 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                   )}
                 </AnimatePresence>
               </div>
-            </SmoothIn>
+            </motion.div>
 
             {/* User Profile / Auth */}
-            <SmoothIn direction="down" delay={0.3}>
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
               <div className="relative group/user" onMouseEnter={() => setIsUserOpen(true)} onMouseLeave={() => setIsUserOpen(false)}>
                 {user ? (
                   <div className="flex items-center space-x-3 cursor-pointer">
@@ -241,10 +254,14 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                   )}
                 </AnimatePresence>
               </div>
-            </SmoothIn>
+            </motion.div>
 
             {/* Language Selector */}
-            <SmoothIn direction="down" delay={0.4}>
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+            >
               <div className="flex items-center space-x-2 border-l border-white/20 pl-6 ml-6">
                 <button 
                   onClick={() => setLang('ro')}
@@ -260,9 +277,13 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                   EN
                 </button>
               </div>
-            </SmoothIn>
+            </motion.div>
 
-            <SmoothIn direction="down" delay={0.5}>
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
               <Magnetic>
                 <Link 
                   to="/apartamente"
@@ -271,7 +292,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                   {t.reserve}
                 </Link>
               </Magnetic>
-            </SmoothIn>
+            </motion.div>
           </div>
 
           {/* Mobile Menu Button */}
