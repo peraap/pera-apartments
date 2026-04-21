@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { format, addDays, isBefore, isAfter, startOfDay, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import { format, addDays, isBefore, isAfter, startOfDay, eachDayOfInterval, isWithinInterval, differenceInDays } from 'date-fns';
 import { DayPicker, DateRange } from 'react-day-picker';
 import 'react-day-picker/style.css';
-import { Calendar as CalendarIcon, CreditCard, Loader2, Info, ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Calendar as CalendarIcon, CreditCard, Loader2, Info, ArrowRight, Tag, Check, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { useAuth } from '../AuthContext';
+import { SpecialOffer } from '../types';
 
 // Booking Calendar Component
 interface BookingCalendarProps {
@@ -23,10 +24,34 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   const [loading, setLoading] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(true);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  
+  const [availableOffers, setAvailableOffers] = useState<SpecialOffer[]>([]);
+  const [selectedOffer, setSelectedOffer] = useState<SpecialOffer | null>(null);
+  const [isOfferDropdownOpen, setIsOfferDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchBookedDates();
+    fetchOffers();
   }, [apartmentId]);
+
+  const fetchOffers = () => {
+    const q = query(
+      collection(db, 'specialOffers'), 
+      where('isActive', '==', true)
+    );
+    
+    return onSnapshot(q, (snapshot) => {
+      const allOffers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpecialOffer));
+      // Filter by apartmentId and date validity
+      const now = new Date();
+      const relevantOffers = allOffers.filter(offer => {
+        const isApplicable = offer.applicableApartments.length === 0 || offer.applicableApartments.includes(apartmentId);
+        const isTimeValid = new Date(offer.startDate) <= now && new Date(offer.endDate) >= now;
+        return isApplicable && isTimeValid;
+      });
+      setAvailableOffers(relevantOffers);
+    });
+  };
 
   const fetchBookedDates = async () => {
     setCheckingAvailability(true);
@@ -59,13 +84,37 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
     );
   };
 
-  const calculateTotal = () => {
+  const calculateNights = () => {
     if (range?.from && range?.to) {
-      const diffTime = Math.abs(range.to.getTime() - range.from.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays * pricePerNight;
+      return Math.max(1, differenceInDays(range.to, range.from));
     }
     return 0;
+  };
+
+  const calculateTotal = () => {
+    const nights = calculateNights();
+    if (nights === 0) return 0;
+    
+    const subtotal = nights * pricePerNight;
+    
+    let discount = 0;
+    if (selectedOffer) {
+      // Check min nights condition
+      if (offerConditionMet(selectedOffer)) {
+        if (selectedOffer.discountType === 'percentage') {
+          discount = (subtotal * selectedOffer.discountValue) / 100;
+        } else {
+          discount = selectedOffer.discountValue;
+        }
+      }
+    }
+    
+    return Math.max(0, subtotal - discount);
+  };
+
+  const offerConditionMet = (offer: SpecialOffer) => {
+    const nights = calculateNights();
+    return !offer.minNights || nights >= offer.minNights;
   };
 
   const handleBooking = async () => {
@@ -76,6 +125,11 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
 
     if (!user) {
       toast.error('Te rugăm să te autentifici pentru a rezerva.');
+      return;
+    }
+
+    if (selectedOffer && !offerConditionMet(selectedOffer)) {
+      toast.error(`Această ofertă necesită minim ${selectedOffer.minNights} nopți.`);
       return;
     }
 
@@ -127,6 +181,8 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
           checkOut: format(range.to, 'yyyy-MM-dd'),
           guestEmail: user.email,
           guestName: user.displayName || 'Oaspete Pera',
+          offerId: selectedOffer?.id || null,
+          offerTitle: selectedOffer?.title || null
         }),
       });
 
@@ -176,8 +232,8 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-neutral-100 p-8 shadow-sm">
-      <div className="flex items-center gap-3 mb-8">
+    <div className="bg-white rounded-[2rem] border border-neutral-100 p-2 sm:px-8 sm:py-6 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 mb-4 sm:mb-6 px-4 sm:px-0">
         <div className="w-10 h-10 bg-neutral-900 rounded-xl flex items-center justify-center">
           <CalendarIcon className="text-white" size={20} />
         </div>
@@ -187,41 +243,116 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         </div>
       </div>
 
-      <div className="mb-8 flex justify-center">
+      <div className="mb-4 sm:mb-6 flex justify-center">
         <DayPicker
           mode="range"
           selected={range}
           onSelect={setRange}
           disabled={isDateDisabled}
           numberOfMonths={1}
-          className="border-none font-sans"
+          className="border-none font-sans max-w-full"
           classNames={{
             selected: "rounded-full",
             range_start: "rounded-l-full",
             range_end: "rounded-r-full",
             range_middle: "rounded-none",
             today: "text-black font-black underline",
-            day: "h-10 w-10 text-xs font-bold hover:bg-neutral-100 rounded-full transition-all",
-            head_cell: "text-[10px] font-black uppercase tracking-widest text-neutral-400 pb-4",
+            day: "h-8 w-8 sm:h-9 sm:w-9 text-[10px] sm:text-xs font-bold hover:bg-neutral-100 rounded-full transition-all",
+            head_cell: "text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-neutral-400 pb-2",
           }}
         />
       </div>
+
+      {/* Special Offers Selection */}
+      {availableOffers.length > 0 && (
+        <div className="mb-8 relative">
+          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-4 block">Oferte Disponibile</label>
+          <button
+            onClick={() => setIsOfferDropdownOpen(!isOfferDropdownOpen)}
+            className="w-full flex items-center justify-between p-4 bg-neutral-50 rounded-2xl border border-neutral-100 hover:border-black transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <Tag size={16} className={selectedOffer ? 'text-black' : 'text-neutral-300'} />
+              <span className={`text-[11px] font-black uppercase tracking-widest ${selectedOffer ? 'text-black' : 'text-neutral-400'}`}>
+                {selectedOffer ? selectedOffer.title : 'Alege o ofertă'}
+              </span>
+            </div>
+            <ChevronDown size={14} className={`transition-transform duration-300 ${isOfferDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          <AnimatePresence>
+            {isOfferDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-2xl border border-neutral-100 shadow-2xl p-2 overflow-hidden"
+              >
+                <div 
+                  className={`p-4 rounded-xl cursor-pointer flex items-center gap-3 transition-colors ${!selectedOffer ? 'bg-black text-white' : 'hover:bg-neutral-50 text-neutral-600'}`}
+                  onClick={() => { setSelectedOffer(null); setIsOfferDropdownOpen(false); }}
+                >
+                  <div className="flex-grow">
+                    <p className="text-[10px] font-black uppercase tracking-widest leading-none">Fără ofertă</p>
+                  </div>
+                  {!selectedOffer && <Check size={14} />}
+                </div>
+                {availableOffers.map((offer) => {
+                  const isMet = offerConditionMet(offer);
+                  return (
+                    <div 
+                      key={offer.id}
+                      className={`p-4 rounded-xl cursor-pointer flex items-center gap-3 transition-colors mt-1 ${selectedOffer?.id === offer.id ? 'bg-black text-white' : 'hover:bg-neutral-50 text-neutral-600'}`}
+                      onClick={() => { setSelectedOffer(offer); setIsOfferDropdownOpen(false); }}
+                    >
+                      <div className="flex-grow">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest leading-none">{offer.title}</p>
+                          <span className="text-[8px] font-black px-2 py-0.5 bg-neutral-200 text-black rounded-full">
+                            -{offer.discountValue}{offer.discountType === 'percentage' ? '%' : ' RON'}
+                          </span>
+                        </div>
+                        {offer.minNights && (
+                          <p className={`text-[8px] font-bold uppercase tracking-tight ${!isMet ? 'text-red-400' : 'opacity-50'}`}>
+                            Min. {offer.minNights} nopți {!isMet && '(Condiție neîndeplinită)'}
+                          </p>
+                        )}
+                      </div>
+                      {selectedOffer?.id === offer.id && <Check size={14} />}
+                    </div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {range?.from && range?.to && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-4 mb-8 p-6 bg-neutral-50 rounded-2xl border border-neutral-100"
+          className="space-y-3 mb-6 p-4 sm:p-5 bg-neutral-50 rounded-2xl border border-neutral-100"
         >
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Perioada</span>
-            <span className="text-xs font-bold text-neutral-900">
+          <div className="flex justify-between items-center text-xs font-bold text-neutral-900 gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Nopți</span>
+            <span className="text-right">{calculateNights()} nopți</span>
+          </div>
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Perioada</span>
+            <span className="text-[10px] sm:text-xs font-bold text-neutral-900 text-right truncate">
               {format(range.from, 'dd MMM')} - {format(range.to, 'dd MMM yyyy')}
             </span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Total</span>
-            <span className="text-lg font-display font-black text-neutral-900">
+          {selectedOffer && offerConditionMet(selectedOffer) && (
+             <div className="flex justify-between items-center text-green-600 gap-2">
+                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest shrink-0">Ofertă Aplicată</span>
+                <span className="text-xs font-bold text-right">-{selectedOffer.discountValue}{selectedOffer.discountType === 'percentage' ? '%' : ' RON'}</span>
+             </div>
+          )}
+          <div className="flex justify-between items-center pt-4 border-t border-neutral-200 gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Total</span>
+            <span className="text-base sm:text-lg font-display font-black text-neutral-900 text-right">
               {calculateTotal()} RON
             </span>
           </div>
@@ -230,8 +361,8 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
 
       <button
         onClick={handleBooking}
-        disabled={loading || checkingAvailability || !range?.from || !range?.to}
-        className="w-full bg-black text-white py-5 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50"
+        disabled={loading || checkingAvailability || !range?.from || !range?.to || (selectedOffer && !offerConditionMet(selectedOffer))}
+        className="w-full bg-black text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50"
       >
         {loading ? (
           <Loader2 className="animate-spin" size={18} />

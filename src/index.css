@@ -7,7 +7,10 @@
   --font-serif: "Outfit", sans-serif;
   --font-description: "Inter", sans-serif;
   --font-mono: "Space Grotesk", monospace;
-  --color-primary-accent: #c5a059;
+  --color-primary-accent: #ffb100;
+  --color-vibrant-indigo: #4f46e5;
+  --color-vibrant-rose: #f43f5e;
+  --color-vibrant-emerald: #10b981;
 }
 
 @layer base {
@@ -15,7 +18,21 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-white text-black antialiased font-sans text-[16px] selection:bg-primary-accent selection:text-white;
+    @apply bg-white text-neutral-900 antialiased font-sans text-[16px] selection:bg-black selection:text-white;
+  }
+
+  /* Grainy texture background overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.02;
+    z-index: 9999;
   }
   p, li, .description-text, .prose p, .prose li {
     @apply font-sans text-[1rem] leading-relaxed font-light text-neutral-600;
@@ -76,9 +93,45 @@
   @apply bg-black/40 backdrop-blur-lg border border-white/10 shadow-2xl;
 }
 
+/* Glow Effects */
+.glow-accent {
+  box-shadow: 0 0 20px rgba(197, 160, 89, 0.2);
+}
+
+.glow-white {
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
+}
+
+.glow-hover:hover {
+  box-shadow: 0 0 40px rgba(197, 160, 89, 0.4);
+}
+
+/* 3D Perspective */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
 /* Interactive Cards */
 .card-hover {
-  @apply transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl;
+  @apply transition-all duration-700 hover:-translate-y-2;
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+}
+
+.card-hover:hover {
+  box-shadow: 0 20px 50px rgba(0,0,0,0.15), 0 0 40px rgba(197, 160, 89, 0.4);
+}
+
+.card-3d {
+  @apply transition-transform duration-500 ease-out;
+  transform: perspective(1000px) rotateX(var(--rotate-x, 0deg)) rotateY(var(--rotate-y, 0deg));
 }
 
 /* Calendar Overrides for react-day-picker v9 */
@@ -91,8 +144,8 @@
   --rdp-range_start-color: #ffffff !important;
   --rdp-range_end-background-color: #000000 !important;
   --rdp-range_end-color: #ffffff !important;
-  --rdp-day-height: 40px;
-  --rdp-day-width: 40px;
+  --rdp-day-height: clamp(28px, 4vw, 36px);
+  --rdp-day-width: clamp(28px, 4vw, 36px);
 }
 
 .rdp-selected {

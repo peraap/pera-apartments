@@ -85,7 +85,7 @@ const BookingSuccess: React.FC = () => {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#fcfaf7]">
         <div className="text-center">
           <Loader2 className="animate-spin mx-auto text-neutral-400 mb-4" size={48} />
           <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Se verifică rezervarea...</p>
@@ -95,12 +95,12 @@ const BookingSuccess: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 pt-32 pb-20 px-4">
+    <div className="min-h-screen bg-[#fcfaf7] pt-32 pb-20 px-4">
       <div className="max-w-2xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white rounded-[3rem] p-12 text-center shadow-2xl shadow-black/5 border border-white"
+          className="bg-[#fcfaf7] rounded-[3rem] p-12 text-center shadow-2xl shadow-black/5 border border-white"
         >
           <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-10 shadow-xl shadow-green-500/20">
             <CheckCircle2 className="text-white" size={48} />

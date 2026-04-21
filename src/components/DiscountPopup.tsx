@@ -4,6 +4,7 @@ import { X, Mail, Gift, ArrowRight } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { Magnetic, Reveal3D, GlowWrapper, FloatingElement } from './AnimatedComponents';
 
 export const DiscountPopup: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -63,34 +64,61 @@ export const DiscountPopup: React.FC = () => {
             onClick={handleClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
+            initial={{ opacity: 0, scale: 0.5, y: 100, rotateX: 45 }}
+            animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 100, rotateX: -45 }}
+            transition={{ type: "spring", damping: 20, stiffness: 100 }}
+            className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden border border-neutral-100 perspective-1000"
           >
+            <div className="absolute top-0 right-0 p-20 opacity-[0.03] pointer-events-none select-none">
+              <FloatingElement duration={10}>
+                <div className="text-[15vw] font-display font-black leading-none tracking-tighter">OFFER</div>
+              </FloatingElement>
+            </div>
+
             <button
               onClick={handleClose}
-              className="absolute top-6 right-6 text-neutral-400 hover:text-black transition-colors z-10"
+              className="absolute top-6 right-6 text-neutral-400 hover:text-black transition-colors z-[300]"
             >
               <X size={20} />
             </button>
 
-            <div className="p-8 md:p-10">
-              <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-black/20">
+            <div className="p-8 md:p-10 relative z-10">
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.3 }}
+                className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-black/20"
+              >
                 <Gift className="text-white" size={32} />
-              </div>
+              </motion.div>
 
               <div className="mb-8">
-                <h2 className="text-3xl font-display font-black mb-3 uppercase tracking-tight text-neutral-900 leading-tight">
+                <motion.h2 
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-3xl font-display font-black mb-3 uppercase tracking-tight text-neutral-900 leading-tight"
+                >
                   Reducere <span className="text-neutral-400">20%</span>
-                </h2>
-                <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest leading-relaxed">
+                </motion.h2>
+                <motion.p 
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="text-xs text-neutral-500 font-bold uppercase tracking-widest leading-relaxed"
+                >
                   Beneficiază de reducere 20% până pe 30 aprilie 2026. Înscrie-te acum!
-                </p>
+                </motion.p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-3">
-                <div className="relative">
+                <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="relative"
+                >
                   <input
                     type="text"
                     placeholder="Numele tău"
@@ -99,8 +127,13 @@ export const DiscountPopup: React.FC = () => {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
-                </div>
-                <div className="relative">
+                </motion.div>
+                <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.7 }}
+                  className="relative"
+                >
                   <input
                     type="email"
                     placeholder="Adresa de email"
@@ -109,24 +142,37 @@ export const DiscountPopup: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-black text-white py-5 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50 mt-4"
+                </motion.div>
+                <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.8 }}
                 >
-                  {loading ? 'Se trimite...' : (
-                    <>
-                      Vreau reducerea
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
+                  <Magnetic>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-black text-white py-5 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50 mt-4 active:scale-95"
+                    >
+                      {loading ? 'Se trimite...' : (
+                        <>
+                          Vreau reducerea
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  </Magnetic>
+                </motion.div>
               </form>
 
-              <p className="mt-6 text-[10px] text-center text-neutral-400 font-medium uppercase tracking-tighter">
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="mt-6 text-[10px] text-center text-neutral-400 font-medium uppercase tracking-tighter"
+              >
                 *Oferta este valabilă pentru rezervările directe pe site.
-              </p>
+              </motion.p>
             </div>
           </motion.div>
         </div>

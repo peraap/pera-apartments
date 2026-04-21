@@ -2,40 +2,47 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: apartments
-    // Fields: name, description, pricePerNight, capacity, amenities, images, slug, metaTitle, metaDescription
-    //
-    // Collection: bookings
-    // Fields: apartmentId, guestName, guestEmail, guestPhone, checkIn, checkOut, totalPrice, status, createdAt
-    //
-    // Collection: blogPosts
-    // Fields: title, content, excerpt, image, author, date, slug, metaTitle, metaDescription
-    //
-    // Collection: testimonials
-    // Fields: name, rating, comment, date
-    //
-    // Collection: settings
-    // Fields: brandColor, contactEmail, contactPhone, instagramUrl, facebookUrl
-    //
-    // ===============================================================
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
 
     // ===============================================================
-    // Helper Functions
+    // Helper Functions (The Primitives)
     // ===============================================================
     
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && 
-        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-         (request.auth.token.email == "petreandrei1979@gmail.com" && request.auth.token.email_verified == true));
+      // Priority 1: Main Admin Email (Bootstrapped Admin)
+      // Priority 2: Users with 'admin' role in the database
+      return isSignedIn() && (
+        request.auth.token.email == "petreandrei1979@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
     }
 
     function isValidEmail(email) {
@@ -49,39 +56,29 @@ service cloud.firestore {
       );
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isValidStatus(status) {
+      return status in ['pending', 'confirmed', 'cancelled'];
     }
+
+    // ===============================================================
+    // Validation Blueprints
+    // ===============================================================
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'points', 'role']) &&
-             data.uid is string &&
+             data.uid is string && data.uid.size() < 128 &&
              isValidEmail(data.email) &&
              data.points is number &&
-             data.role in ['admin', 'user'] &&
-             (!('lastLogin' in data) || isValidDateString(data.lastLogin)) &&
-             (!('createdAt' in data) || isValidDateString(data.createdAt));
-    }
-
-    function isUserUpdateValid(current, next) {
-      // Allow updating lastLogin and points (within limits)
-      // Role can only be changed by admin (handled in the match block)
-      return next.uid == current.uid &&
-             next.email == current.email &&
-             next.role == current.role &&
-             (next.points == current.points || next.points == current.points + 10);
+             data.role in ['admin', 'user'];
     }
 
     function isValidBooking(data) {
       return data.keys().hasAll(['apartmentId', 'checkIn', 'checkOut', 'totalPrice', 'status']) &&
-             data.apartmentId is string &&
+             isValidId(data.apartmentId) &&
              isValidDateString(data.checkIn) &&
              isValidDateString(data.checkOut) &&
              data.totalPrice is number &&
-             data.status in ['pending', 'confirmed', 'cancelled'] &&
-             (!('guestEmail' in data) || isValidEmail(data.guestEmail)) &&
-             (!('stripeSessionId' in data) || data.stripeSessionId is string) &&
-             (!('sessionId' in data) || data.sessionId is string);
+             isValidStatus(data.status);
     }
 
     function isValidMessage(data) {
@@ -89,20 +86,42 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              isValidEmail(data.email) &&
              data.subject is string && data.subject.size() > 0 && data.subject.size() < 200 &&
-             data.message is string && data.message.size() > 0 && data.message.size() < 5000 &&
-             (!('createdAt' in data) || data.createdAt is timestamp);
+             data.message is string && data.message.size() > 0 && data.message.size() < 5000;
     }
 
-    function isValidLead(data) {
-      return data.keys().hasAll(['name', 'email']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             isValidEmail(data.email) &&
-             (!('createdAt' in data) || isValidDateString(data.createdAt));
+    function isValidApartment(data) {
+      return data.keys().hasAll(['name', 'slug', 'pricePerNight', 'capacity']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.slug is string &&
+             data.pricePerNight is number &&
+             data.capacity is number;
+    }
+
+    function isValidOffer(data) {
+      return data.keys().hasAll(['title', 'discountType', 'discountValue', 'isActive']) &&
+             data.title is string &&
+             data.discountType in ['percentage', 'fixed'] &&
+             data.discountValue is number &&
+             data.isActive is bool;
     }
 
     // ===============================================================
-    // Rules
+    // Collection Rules
     // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if (
+        (isOwner(userId) && (
+          // Allow self-upgrade ONLY for the bootstrapped admin
+          (request.auth.token.email == "petreandrei1979@gmail.com" && incoming().role == 'admin') ||
+          // Standard users cannot change their role
+          (incoming().role == existing().role)
+        ) && incoming().uid == userId && incoming().email == existing().email) || 
+        isAdmin()
+      );
+    }
 
     match /apartments/{apartmentId} {
       allow read: if true;
@@ -110,42 +129,40 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow read: if isAdmin() || 
-                  (isAuthenticated() && resource.data.guestEmail == request.auth.token.email) ||
-                  (resource.data.stripeSessionId != null || resource.data.sessionId != null || resource.data.status in ['confirmed', 'pending']);
-      allow create: if isValidBooking(request.resource.data);
-      allow update, delete: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.guestEmail == request.auth.token.email);
+      allow create: if isValidBooking(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    match /blogPosts/{postId} {
+    match /blog/{postId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    match /testimonials/{testimonialId} {
+    match /messages/{messageId} {
+      allow create: if isValidMessage(incoming());
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /specialOffers/{offerId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() && isValidOffer(incoming());
+    }
+
+    match /leads/{leadId} {
+      allow create: if isValidEmail(incoming().email);
+      allow read, update, delete: if isAdmin();
     }
 
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }
-
-    match /messages/{messageId} {
-      allow create: if isValidMessage(request.resource.data);
-      allow read, update, delete: if isAdmin();
-    }
-
-    match /leads/{leadId} {
-      allow create: if isValidLead(request.resource.data);
-      allow read, update, delete: if isAdmin();
-    }
-
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && isUserUpdateValid(resource.data, request.resource.data)) || isAdmin();
+    
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

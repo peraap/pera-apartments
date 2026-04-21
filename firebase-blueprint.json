@@ -120,6 +120,24 @@
         "source": { "type": "string" }
       },
       "required": ["name", "email"]
+    },
+    "specialOffer": {
+      "title": "Special Offer",
+      "description": "A promotional offer or package.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed"] },
+        "discountValue": { "type": "number" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "image": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "applicableApartments": { "type": "array", "items": { "type": "string" } },
+        "minNights": { "type": "integer" }
+      },
+      "required": ["title", "description", "discountType", "discountValue", "startDate", "endDate", "isActive"]
     }
   },
   "firestore": {
@@ -131,7 +149,7 @@
       "schema": "booking",
       "description": "Collection of guest reservations."
     },
-    "/blogPosts/{postId}": {
+    "/blog/{postId}": {
       "schema": "blogPost",
       "description": "Collection of blog articles."
     },
@@ -154,6 +172,10 @@
     "/leads/{leadId}": {
       "schema": "lead",
       "description": "Collection of captured leads for marketing."
+    },
+    "/specialOffers/{offerId}": {
+      "schema": "specialOffer",
+      "description": "Collection of promotional offers and packages."
     }
   }
 }

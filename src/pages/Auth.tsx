@@ -39,11 +39,11 @@ export default function AuthPage({ lang }: { lang: 'ro' | 'en' }) {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4 pt-24 pb-12">
+    <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center p-4 pt-24 pb-12">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden border border-neutral-100 flex flex-col md:flex-row min-h-[600px]"
+        className="bg-[#fcfaf7] w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden border border-neutral-100 flex flex-col md:flex-row min-h-[600px]"
       >
         {/* Left Side - Visual/Branding */}
         <div className="hidden md:block w-1/2 bg-neutral-900 relative overflow-hidden">
@@ -58,7 +58,7 @@ export default function AuthPage({ lang }: { lang: 'ro' | 'en' }) {
               <ArrowLeft size={16} className="mr-2" />
               {lang === 'ro' ? 'Înapoi la site' : 'Back to site'}
             </Link>
-            <h3 className="text-4xl font-serif italic mb-4">Pera</h3>
+            <h3 className="text-4xl font-display font-black italic mb-4">Pera</h3>
             <p className="text-xs uppercase tracking-[0.4em] font-bold opacity-60 mb-8">Apartments</p>
             <p className="text-sm font-light leading-relaxed opacity-80 max-w-xs">
               {lang === 'ro' 
@@ -69,7 +69,7 @@ export default function AuthPage({ lang }: { lang: 'ro' | 'en' }) {
         </div>
 
         {/* Right Side - Form */}
-        <div className="flex-1 p-8 md:p-16 bg-white flex flex-col justify-center">
+        <div className="flex-1 p-8 md:p-16 bg-[#fcfaf7] flex flex-col justify-center">
           <div className="mb-12">
             <h2 className="text-4xl font-serif font-black mb-3 uppercase tracking-tight text-neutral-900">
               {isLogin ? (lang === 'ro' ? 'Autentificare' : 'Login') : (lang === 'ro' ? 'Cont Nou' : 'New Account')}

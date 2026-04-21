@@ -5,13 +5,14 @@ import { Link } from 'react-router-dom';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BlogPost } from '../types';
+import { Reveal3D, TextReveal } from '../components/AnimatedComponents';
 
 export default function Blog() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'blogPosts'), orderBy('date', 'desc'));
+    const q = query(collection(db, 'blog'), orderBy('date', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
         setPosts([
@@ -90,15 +91,17 @@ export default function Blog() {
   }, []);
 
   return (
-    <div className="pt-32 pb-24">
+    <div className="pt-32 pb-24 bg-[#fcfaf7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-20">
-          <span className="text-xs uppercase tracking-[0.3em] font-bold text-neutral-400 mb-4 block">Ghidul Orașului</span>
-          <h1 className="text-4xl md:text-6xl font-serif mb-6">Inspiră-te pentru <span className="italic font-light">următoarea aventură.</span></h1>
-          <p className="max-w-2xl mx-auto text-neutral-800 leading-relaxed font-medium">
-            Recomandări locale, evenimente culturale și secretele ascunse ale orașului, curatoriate special pentru oaspeții noștri.
-          </p>
-        </div>
+        <Reveal3D>
+          <div className="text-center mb-20">
+            <span className="text-xs uppercase tracking-[0.3em] font-bold text-neutral-400 mb-4 block">Ghidul Orașului</span>
+            <h1 className="text-4xl md:text-6xl font-display font-black tracking-tighter mb-6">Inspiră-te pentru <span className="italic font-light text-neutral-400">următoarea aventură.</span></h1>
+            <p className="max-w-2xl mx-auto text-neutral-600 leading-relaxed font-bold italic">
+              Recomandări locale, evenimente culturale și secretele ascunse ale orașului, curatoriate special pentru oaspeții noștri.
+            </p>
+          </div>
+        </Reveal3D>
 
         {loading ? (
           <div className="flex justify-center py-20">

@@ -65,12 +65,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Ensure admin role for ADMIN_EMAIL
             if (currentUser.email === ADMIN_EMAIL && data.role !== 'admin') {
               console.log('Upgrading user to admin role');
-              setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(err => console.error('Error upgrading to admin:', err));
+              setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(err => {
+                console.error('Error upgrading to admin:', err);
+              });
             }
 
             const lastUpdate = data.lastLogin ? new Date(data.lastLogin).getTime() : 0;
             if (Date.now() - lastUpdate > 5 * 60 * 1000) {
-              setDoc(userDocRef, { lastLogin: now }, { merge: true }).catch(err => console.error('Error updating lastLogin:', err));
+              setDoc(userDocRef, { lastLogin: now }, { merge: true }).catch(err => {
+                // Silently handle background update errors
+                if (err.code !== 'permission-denied') console.error('Error updating lastLogin:', err);
+              });
             }
           } else {
             console.log('Creating initial profile...');
@@ -84,15 +89,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               lastLogin: now,
               createdAt: now
             };
-            setDoc(userDocRef, initialProfile).catch(err => console.error('Error creating profile:', err));
+            setDoc(userDocRef, initialProfile).catch(err => {
+              console.error('Error creating profile:', err);
+            });
             setProfile(initialProfile);
           }
           setLoading(false);
         }, (error) => {
           console.error('Profile snapshot error:', error);
-          setLoading(false);
+          // If we get permission denied, it might be because the doc hasn't been created yet
+          // or the user logs in and we haven't synced. We'll wait.
+          if (error.code === 'permission-denied') {
+            // Check if we already have a user. If so, try to create doc if it fails read
+            if (auth.currentUser) {
+              setLoading(false);
+            }
+          } else {
+            setLoading(false);
+          }
         });
-      } else {
+      }
+ else {
         setProfile(null);
         setLoading(false);
       }

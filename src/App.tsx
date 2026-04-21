@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { 
   BrowserRouter as Router, 
   Routes, 
@@ -7,7 +7,8 @@ import {
   useLocation 
 } from 'react-router-dom';
 import { HashLink } from 'react-router-hash-link';
-import { motion, AnimatePresence } from 'motion/react';
+import { Helmet, HelmetProvider } from 'react-helmet-async';
+import { motion, AnimatePresence, useScroll, useSpring, useMotionValue } from 'motion/react';
 import { 
   Menu, 
   X, 
@@ -25,6 +26,7 @@ import {
 import { Toaster, toast } from 'sonner';
 import { AuthProvider, useAuth } from './AuthContext';
 import { AuthModal } from './components/AuthModal';
+import { Magnetic, GlowWrapper, Reveal3D, FloatingElement, SmoothIn, TextReveal, SkewScroll } from './components/AnimatedComponents';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
@@ -115,145 +117,159 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
   const bookingLink = "https://www.booking.com/Share-QTimNJq";
 
   return (
-    <nav className={`fixed w-full z-50 transition-all duration-500 ${scrolled ? 'bg-white/70 backdrop-blur-xl shadow-sm py-3' : 'bg-transparent py-6'}`}>
+    <nav className={`fixed w-full z-50 transition-all duration-1000 ${scrolled ? 'bg-[#fcfaf7]/90 backdrop-blur-2xl shadow-xl py-3 border-b border-neutral-100' : 'bg-transparent py-6'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
           <Link to="/" className="flex items-center group">
-            <span className={`text-2xl font-display font-bold tracking-tighter transition-colors duration-500 ${scrolled ? 'text-black' : 'text-white'}`}>
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className={`text-2xl font-display font-bold tracking-tighter transition-colors duration-500 ${scrolled ? 'text-black' : 'text-white'}`}
+            >
               PERA <span className={`font-light italic transition-colors duration-500 ${scrolled ? 'text-neutral-500' : 'text-white/70'}`}>Apartments</span>
-            </span>
+            </motion.span>
           </Link>
 
-          {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-10">
-            <Link 
-              to="/"
-              className={`text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 relative after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1px] after:bg-current after:transition-all hover:after:w-full ${scrolled ? 'text-black' : 'text-white'}`}
-            >
-              {t.home}
-            </Link>
+            {navLinks.map((link, i) => (
+              <SmoothIn key={link.path} direction="down" delay={i * 0.1}>
+                <Magnetic>
+                  <Link 
+                    to={link.path}
+                    className={`text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 relative after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1px] after:bg-current after:transition-all hover:after:w-full ${scrolled ? 'text-black' : 'text-white'}`}
+                  >
+                    {link.name}
+                  </Link>
+                </Magnetic>
+              </SmoothIn>
+            ))}
 
             {/* Info Dropdown */}
-            <div className="relative group/info" onMouseEnter={() => setIsInfoOpen(true)} onMouseLeave={() => setIsInfoOpen(false)}>
-              <button className={`flex items-center text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${scrolled ? 'text-black' : 'text-white'}`}>
-                {t.info}
-                <ChevronDown size={14} className={`ml-1 transition-transform duration-300 ${isInfoOpen ? 'rotate-180' : ''}`} />
-              </button>
-              <AnimatePresence>
-                {isInfoOpen && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full left-0 mt-2 w-48 bg-white shadow-2xl rounded-xl overflow-hidden py-2"
-                  >
-                    {infoLinks.map((link) => (
-                      <HashLink 
-                        key={link.path}
-                        to={link.path}
-                        className="block px-6 py-3 text-xs font-semibold tracking-tight text-black hover:bg-neutral-50 transition-colors"
-                      >
-                        {link.name}
-                      </HashLink>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <Link 
-              to="/contact"
-              className={`text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 relative after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1px] after:bg-current after:transition-all hover:after:w-full ${scrolled ? 'text-black' : 'text-white'}`}
-            >
-              {t.contact}
-            </Link>
+            <SmoothIn direction="down" delay={0.2}>
+              <div className="relative group/info" onMouseEnter={() => setIsInfoOpen(true)} onMouseLeave={() => setIsInfoOpen(false)}>
+                <button className={`flex items-center text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${scrolled ? 'text-black' : 'text-white'}`}>
+                  {t.info}
+                  <ChevronDown size={14} className={`ml-1 transition-transform duration-300 ${isInfoOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {isInfoOpen && (
+                    <motion.div 
+                      initial={{ opacity: 0, rotateX: -15, y: 10, transformOrigin: "top" }}
+                      animate={{ opacity: 1, rotateX: 0, y: 0 }}
+                      exit={{ opacity: 0, rotateX: -15, y: 10 }}
+                      className="absolute top-full left-0 mt-2 w-48 bg-[#fcfaf7] shadow-2xl rounded-xl overflow-hidden py-2 border border-neutral-100"
+                    >
+                      {infoLinks.map((link) => (
+                        <HashLink 
+                          key={link.path}
+                          to={link.path}
+                          className="block px-6 py-3 text-xs font-semibold tracking-tight text-black hover:bg-neutral-50 transition-colors"
+                        >
+                          {link.name}
+                        </HashLink>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </SmoothIn>
 
             {/* User Profile / Auth */}
-            <div className="relative group/user" onMouseEnter={() => setIsUserOpen(true)} onMouseLeave={() => setIsUserOpen(false)}>
-              {user ? (
-                <div className="flex items-center space-x-3 cursor-pointer">
-                  <div className="text-right hidden lg:block">
-                    <p className={`text-xs font-bold tracking-tight ${scrolled ? 'text-black' : 'text-white'}`}>
-                      {profile?.displayName || user.email?.split('@')[0]}
-                    </p>
-                    <p className="text-[10px] font-bold text-yellow-500 tracking-tight">
-                      {profile?.points || 0} PTS
-                    </p>
-                  </div>
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center overflow-hidden transition-all duration-500 ${scrolled ? 'border-black' : 'border-white/30'}`}>
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={16} className={scrolled ? 'text-black' : 'text-white'} />
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <Link 
-                  to="/login"
-                  className={`flex items-center space-x-2 text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${scrolled ? 'text-black' : 'text-white'}`}
-                >
-                  <User size={16} />
-                  <span>Login</span>
-                </Link>
-              )}
-
-              <AnimatePresence>
-                {isUserOpen && user && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full right-0 mt-2 w-48 bg-white shadow-2xl rounded-2xl overflow-hidden py-2 border border-neutral-100"
-                  >
-                    <div className="px-6 py-4 border-b border-neutral-50 bg-neutral-50/50">
-                      <p className="text-[10px] font-bold tracking-tight text-neutral-400 mb-1">Puncte Loialitate</p>
-                      <p className="text-lg font-black text-black">{profile?.points || 0} <span className="text-[10px] text-yellow-600">PTS</span></p>
+            <SmoothIn direction="down" delay={0.3}>
+              <div className="relative group/user" onMouseEnter={() => setIsUserOpen(true)} onMouseLeave={() => setIsUserOpen(false)}>
+                {user ? (
+                  <div className="flex items-center space-x-3 cursor-pointer">
+                    <div className="text-right hidden lg:block">
+                      <p className={`text-xs font-bold tracking-tight ${scrolled ? 'text-black' : 'text-white'}`}>
+                        {profile?.displayName || user.email?.split('@')[0]}
+                      </p>
+                      <p className="text-base font-black text-yellow-500 tracking-tight">
+                        {profile?.points || 0} <span className="text-[10px] uppercase">pts</span>
+                      </p>
                     </div>
-                    {profile?.role === 'admin' && (
-                      <Link 
-                        to="/admin"
-                        className="flex items-center space-x-3 px-6 py-3 text-xs font-semibold tracking-tight text-black hover:bg-neutral-50 transition-colors"
-                      >
-                        <LayoutDashboard size={14} />
-                        <span>{t.admin}</span>
-                      </Link>
-                    )}
-                    <button 
-                      onClick={() => logout()}
-                      className="w-full flex items-center space-x-3 px-6 py-3 text-xs font-semibold tracking-tight text-red-600 hover:bg-red-50 transition-colors"
+                    <motion.div 
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      className={`w-10 h-10 rounded-full border-2 flex items-center justify-center overflow-hidden transition-all duration-500 shadow-xl ${scrolled ? 'border-black' : 'border-white/30'}`}
                     >
-                      <X size={14} />
-                      <span>Logout</span>
-                    </button>
-                  </motion.div>
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={18} className={scrolled ? 'text-black' : 'text-white'} />
+                      )}
+                    </motion.div>
+                  </div>
+                ) : (
+                  <Link 
+                    to="/login"
+                    className={`flex items-center space-x-2 text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${scrolled ? 'text-black' : 'text-white'}`}
+                  >
+                    <User size={16} />
+                    <span>Login</span>
+                  </Link>
                 )}
-              </AnimatePresence>
-            </div>
+
+                <AnimatePresence>
+                  {isUserOpen && user && (
+                    <motion.div 
+                      initial={{ opacity: 0, rotateX: 15, y: 10, transformOrigin: "top" }}
+                      animate={{ opacity: 1, rotateX: 0, y: 0 }}
+                      exit={{ opacity: 0, rotateX: 15, y: 10 }}
+                      className="absolute top-full right-0 mt-2 w-56 bg-[#fcfaf7] shadow-2xl rounded-2xl overflow-hidden py-2 border border-neutral-100"
+                    >
+                      <div className="px-6 py-4 border-b border-neutral-50 bg-neutral-50/50">
+                        <p className="text-[10px] font-bold tracking-tight text-neutral-400 mb-1">Puncte Loialitate</p>
+                        <p className="text-xl font-black text-black">{profile?.points || 0} <span className="text-[10px] text-yellow-600">PTS</span></p>
+                      </div>
+                      {profile?.role === 'admin' && (
+                        <Link 
+                          to="/admin"
+                          className="flex items-center space-x-3 px-6 py-3 text-xs font-semibold tracking-tight text-black hover:bg-neutral-50 transition-colors"
+                        >
+                          <LayoutDashboard size={14} />
+                          <span>{t.admin}</span>
+                        </Link>
+                      )}
+                      <button 
+                        onClick={() => logout()}
+                        className="w-full flex items-center space-x-3 px-6 py-3 text-xs font-semibold tracking-tight text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <X size={14} />
+                        <span>Logout</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </SmoothIn>
 
             {/* Language Selector */}
-            <div className="flex items-center space-x-2 border-l border-white/20 pl-6 ml-6">
-              <button 
-                onClick={() => setLang('ro')}
-                className={`text-xs font-bold transition-all ${lang === 'ro' ? (scrolled ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
-              >
-                RO
-              </button>
-              <span className="text-neutral-500 text-xs">/</span>
-              <button 
-                onClick={() => setLang('en')}
-                className={`text-xs font-bold transition-all ${lang === 'en' ? (scrolled ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
-              >
-                EN
-              </button>
-            </div>
+            <SmoothIn direction="down" delay={0.4}>
+              <div className="flex items-center space-x-2 border-l border-white/20 pl-6 ml-6">
+                <button 
+                  onClick={() => setLang('ro')}
+                  className={`text-xs font-black transition-all ${lang === 'ro' ? (scrolled ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
+                >
+                  RO
+                </button>
+                <span className="text-neutral-500 text-xs">/</span>
+                <button 
+                  onClick={() => setLang('en')}
+                  className={`text-xs font-black transition-all ${lang === 'en' ? (scrolled ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
+                >
+                  EN
+                </button>
+              </div>
+            </SmoothIn>
 
-            <Link 
-              to="/apartamente"
-              className={`px-8 py-3 rounded-full text-sm font-bold tracking-tight transition-all duration-500 ${scrolled ? 'bg-black text-white hover:bg-neutral-800 shadow-lg shadow-black/10' : 'bg-white text-black hover:bg-neutral-100'}`}
-            >
-              {t.reserve}
-            </Link>
+            <SmoothIn direction="down" delay={0.5}>
+              <Magnetic>
+                <Link 
+                  to="/apartamente"
+                  className={`px-10 py-4 rounded-full text-sm font-black uppercase tracking-widest transition-all duration-500 ${scrolled ? 'bg-black text-white hover:bg-neutral-800 shadow-2xl shadow-black/20' : 'bg-white text-black hover:bg-neutral-100'}`}
+                >
+                  {t.reserve}
+                </Link>
+              </Magnetic>
+            </SmoothIn>
           </div>
 
           {/* Mobile Menu Button */}
@@ -281,7 +297,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="md:hidden bg-white absolute top-full left-0 w-full shadow-xl py-8 px-4"
+            className="md:hidden bg-[#fcfaf7] absolute top-full left-0 w-full shadow-xl py-8 px-4 border-b border-neutral-100"
           >
             <div className="flex flex-col space-y-6 items-center">
               <Link 
@@ -371,92 +387,119 @@ const Footer = ({ lang }: { lang: 'ro' | 'en' }) => {
   };
 
   return (
-    <footer className="bg-neutral-900 text-white pt-20 pb-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-          <div className="col-span-1 md:col-span-1">
-            <span className="text-2xl font-display font-bold tracking-tighter mb-6 block text-white">
-              PERA <span className="font-light italic text-white/60">Apartments</span>
-            </span>
-            <p className="text-white/90 text-xs leading-relaxed mb-6 font-bold">
-              {t.footerDesc}
-            </p>
-          </div>
+    <footer className="bg-[#0a0a0a] text-white pt-40 pb-16 relative overflow-hidden border-t border-white/5">
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-accent/10 blur-[150px] rounded-full pointer-events-none"></div>
+      {/* Decorative Floating Elements */}
+      <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
+        <FloatingElement duration={10} yOffset={50}>
+          <div className="text-[20rem] font-black leading-none select-none tracking-tighter">PERA</div>
+        </FloatingElement>
+      </div>
 
-          <div>
-            <h4 className="text-sm font-semibold tracking-tight mb-6 text-white">{t.navigation}</h4>
-            <ul className="space-y-4 text-sm">
-              <li><Link to="/" className="text-white hover:text-white/80">{t.home}</Link></li>
-              <li><Link to="/apartamente" className="text-white hover:text-white/80">{t.apartments}</Link></li>
-              <li><Link to="/contact" className="text-white hover:text-white/80">{t.contact}</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold tracking-tight mb-6 text-white">{t.contact}</h4>
-            <div className="space-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-widest font-black text-neutral-500">Email</p>
-                <div className="flex items-center space-x-3 text-white">
-                  <Mail size={18} className="text-white" />
-                  <span className="text-sm">contact.peraapartments@gmail.com</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-widest font-black text-neutral-500">Telefon</p>
-                <div className="flex items-center space-x-3 text-white">
-                  <Phone size={18} className="text-white" />
-                  <span className="text-sm">+40 724 072 041</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-widest font-black text-neutral-500">Locație</p>
-                <div className="flex items-center space-x-3 text-white">
-                  <MapPin size={18} className="text-white" />
-                  <span className="text-sm">{t.locationValue}</span>
-                </div>
-              </div>
-
-              <div className="flex space-x-6 pt-4">
-                <a href="https://www.instagram.com/pera.apartments" target="_blank" rel="noopener noreferrer" className="text-white hover:text-white/80 transition-colors">
-                  <Instagram size={18} />
-                </a>
-                <a href="https://www.facebook.com/profile.php?id=61579446541292#" target="_blank" rel="noopener noreferrer" className="text-white hover:text-white/80 transition-colors">
-                  <Facebook size={18} />
-                </a>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 lg:gap-8 mb-24">
+          <Reveal3D>
+            <div>
+              <Link to="/" className="inline-block mb-10 group">
+                <span className="text-3xl font-display font-black tracking-tighter transition-all group-hover:tracking-widest duration-700">
+                  PERA <span className="font-light italic text-white/60">Apartments</span>
+                </span>
+              </Link>
+              <p className="text-white/60 text-sm leading-relaxed mb-10 max-w-xs font-bold italic">
+                {t.footerDesc}
+              </p>
+              <div className="flex space-x-6">
+                {[
+                  { icon: <Instagram size={20} />, link: "https://www.instagram.com/pera.apartments" },
+                  { icon: <Facebook size={20} />, link: "https://www.facebook.com/profile.php?id=61579446541292#" }
+                ].map((social, i) => (
+                  <Magnetic key={i}>
+                    <a 
+                      href={social.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all duration-500 border border-white/10"
+                    >
+                      {social.icon}
+                    </a>
+                  </Magnetic>
+                ))}
               </div>
             </div>
-          </div>
+          </Reveal3D>
 
-          <div>
-            <h4 className="text-sm font-semibold tracking-tight mb-6 text-white">{t.newsletter}</h4>
-            <p className="text-xs text-white/90 mb-4 font-bold">{t.newsletterDesc}</p>
-            <form onSubmit={handleNewsletterSubmit} className="flex">
-              <input 
-                type="email" 
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t.emailPlaceholder} 
-                className="bg-neutral-800 border-none px-4 py-2 text-sm w-full focus:ring-1 focus:ring-white outline-none"
-              />
-              <button 
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-white text-black px-4 py-2 text-xs font-bold uppercase tracking-widest disabled:opacity-50"
-              >
-                {isSubmitting ? '...' : t.subscribeBtn}
-              </button>
-            </form>
-          </div>
+          <Reveal3D>
+            <div>
+              <h4 className="text-xs uppercase tracking-[0.4em] font-black mb-10 text-white/30">{t.navigation}</h4>
+              <ul className="space-y-4">
+                <li><Link to="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors duration-300 flex items-center group"><span className="w-0 group-hover:w-4 h-[1px] bg-white mr-0 group-hover:mr-3 transition-all duration-500 overflow-hidden"></span>{t.home}</Link></li>
+                <li><Link to="/apartamente" className="text-sm font-bold text-white/60 hover:text-white transition-colors duration-300 flex items-center group"><span className="w-0 group-hover:w-4 h-[1px] bg-white mr-0 group-hover:mr-3 transition-all duration-500 overflow-hidden"></span>{t.apartments}</Link></li>
+                <li><Link to="/contact" className="text-sm font-bold text-white/60 hover:text-white transition-colors duration-300 flex items-center group"><span className="w-0 group-hover:w-4 h-[1px] bg-white mr-0 group-hover:mr-3 transition-all duration-500 overflow-hidden"></span>{t.contact}</Link></li>
+              </ul>
+            </div>
+          </Reveal3D>
+
+          <Reveal3D>
+            <div>
+              <h4 className="text-xs uppercase tracking-[0.4em] font-black mb-10 text-white/30">{t.contact}</h4>
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4 group cursor-pointer">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 group-hover:bg-white group-hover:text-black transition-all">
+                    <Mail size={18} />
+                  </div>
+                  <p className="text-sm text-white/60 font-bold leading-relaxed group-hover:text-white transition-colors break-all">contact.peraapartments@gmail.com</p>
+                </div>
+                <div className="flex items-center space-x-4 group cursor-pointer">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 group-hover:bg-white group-hover:text-black transition-all">
+                    <Phone size={18} />
+                  </div>
+                  <p className="text-sm text-white/70 font-black group-hover:text-white transition-colors">+40 724 072 041</p>
+                </div>
+                <div className="flex items-center space-x-4 group cursor-pointer">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 group-hover:bg-white group-hover:text-black transition-all">
+                    <MapPin size={18} />
+                  </div>
+                  <p className="text-sm text-white/60 font-bold group-hover:text-white transition-colors leading-relaxed">{t.locationValue}</p>
+                </div>
+              </div>
+            </div>
+          </Reveal3D>
+
+          <Reveal3D>
+            <div>
+              <h4 className="text-xs uppercase tracking-[0.4em] font-black mb-10 text-white/30">{t.newsletter}</h4>
+              <p className="text-sm text-white/60 mb-8 font-bold leading-relaxed">{t.newsletterDesc}</p>
+              <GlowWrapper>
+                <form onSubmit={handleNewsletterSubmit} className="flex space-x-2">
+                  <input 
+                    type="email" 
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t.emailPlaceholder} 
+                    className="flex-grow bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-primary-accent outline-none transition-all placeholder:text-white/20 font-bold"
+                  />
+                  <Magnetic>
+                    <button 
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="bg-primary-accent text-black px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white transition-all shadow-xl"
+                    >
+                      {isSubmitting ? '...' : t.subscribeBtn}
+                    </button>
+                  </Magnetic>
+                </form>
+              </GlowWrapper>
+            </div>
+          </Reveal3D>
         </div>
 
-        <div className="border-t border-neutral-800 pt-8 flex flex-col md:flex-row justify-between items-center text-xs uppercase tracking-widest text-white/50">
-          <p>© 2026 Pera Apartments. {t.rights}</p>
-          <div className="flex space-x-6 mt-4 md:mt-0">
-            <Link to="/legal/privacy" className="hover:text-white">{t.privacy}</Link>
-            <Link to="/legal/terms" className="hover:text-white">{t.terms}</Link>
-            <Link to="/admin" className="flex items-center space-x-1 hover:text-white">
+        <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+          <p>© 2026 PERA APARTMENTS. {t.rights}</p>
+          <div className="flex space-y-10 mt-6 md:mt-0">
+            <Link to="/legal/privacy" className="hover:text-white transition-colors">{t.privacy}</Link>
+            <Link to="/legal/terms" className="hover:text-white transition-colors">{t.terms}</Link>
+            <Link to="/admin" className="flex items-center space-x-2 hover:text-white transition-colors">
               <LayoutDashboard size={10} />
               <span>{t.admin}</span>
             </Link>
@@ -467,37 +510,173 @@ const Footer = ({ lang }: { lang: 'ro' | 'en' }) => {
   );
 };
 
+const GlowCursor = () => {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const [isHovering, setIsHovering] = useState(false);
+
+  const springConfig = { damping: 25, stiffness: 150 };
+  const cursorX = useSpring(mouseX, springConfig);
+  const cursorY = useSpring(mouseY, springConfig);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
+
+      const target = e.target as HTMLElement;
+      const isInteractable = target.closest('a, button, [role="button"], .cursor-pointer');
+      setIsHovering(!!isInteractable);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  return (
+    <>
+      <motion.div
+        className="fixed top-0 left-0 w-4 h-4 bg-white rounded-full mix-blend-difference pointer-events-none z-[9999] hidden md:block"
+        style={{
+          x: cursorX,
+          y: cursorY,
+          translateX: "-50%",
+          translateY: "-50%",
+        }}
+        animate={{
+          scale: isHovering ? 3 : 1,
+          opacity: 1,
+        }}
+      />
+      <motion.div
+        className="fixed top-0 left-0 w-12 h-12 border border-white/20 rounded-full pointer-events-none z-[9998] hidden md:block"
+        style={{
+          x: cursorX,
+          y: cursorY,
+          translateX: "-50%",
+          translateY: "-50%",
+        }}
+        animate={{
+          scale: isHovering ? 1.5 : 1,
+          opacity: isHovering ? 0 : 0.5,
+        }}
+      />
+    </>
+  );
+};
+
+const SEO = ({ title, description, language }: { title?: string, description?: string, language: string }) => {
+  const t = translations[language as 'ro' | 'en'];
+  const baseTitle = "Pera Apartments";
+  const fullTitle = title ? `${title} | ${baseTitle}` : `${baseTitle} | Luxury Cristian, Brașov`;
+  const fullDescription = description || t.footerDesc;
+
+  return (
+    <Helmet>
+      <title>{fullTitle}</title>
+      <meta name="description" content={fullDescription} />
+      <meta property="og:title" content={fullTitle} />
+      <meta property="og:description" content={fullDescription} />
+      <meta property="og:image" content="/og-image.jpg" />
+      <html lang={language} />
+    </Helmet>
+  );
+};
+
+const AppContent = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en') => void }) => {
+  const location = useLocation();
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col font-sans bg-[#fcfaf7] text-black overflow-x-hidden">
+      <SEO language={lang} />
+      <GlowCursor />
+      <Navbar lang={lang} setLang={setLang} />
+      
+      {/* Scroll Progress Bar */}
+      <motion.div
+        className="fixed top-0 left-0 right-0 h-1 bg-black z-[100] origin-left"
+        style={{ scaleX: useScroll().scrollYProgress }}
+      />
+
+      <main className="flex-grow">
+        <SkewScroll>
+          <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-[#fcfaf7]">
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                className="w-12 h-12 border-2 border-black border-t-transparent rounded-full"
+              />
+            </div>
+          }>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, scale: 0.98, filter: "blur(10px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, scale: 1.02, filter: "blur(10px)" }}
+                transition={{ 
+                  duration: 0.8, 
+                  ease: [0.2, 0.65, 0.3, 0.9] 
+                }}
+              >
+                <Routes location={location}>
+                  <Route path="/" element={<Home lang={lang} />} />
+                  <Route path="/apartamente" element={<Apartments lang={lang} />} />
+                  <Route path="/apartamente/:slug" element={<ApartmentDetail lang={lang} />} />
+                  <Route path="/contact" element={<Contact lang={lang} />} />
+                  <Route path="/login" element={<Auth lang={lang} />} />
+                  <Route path="/admin/*" element={<Admin />} />
+                  <Route path="/legal/:type" element={<Legal lang={lang} />} />
+                  <Route path="/booking-success" element={<BookingSuccess />} />
+                </Routes>
+              </motion.div>
+            </AnimatePresence>
+          </Suspense>
+        </SkewScroll>
+      </main>
+      <Footer lang={lang} />
+      <DiscountPopup />
+      <Toaster position="top-center" richColors />
+
+      {/* Back to Top Button */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-8 right-8 z-[60] bg-black text-white p-4 rounded-full shadow-2xl hover:bg-neutral-800 transition-colors group"
+          >
+            <ChevronDown className="rotate-180 group-hover:-translate-y-1 transition-transform" size={24} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function App() {
   const [lang, setLang] = useState<'ro' | 'en'>('ro');
 
   return (
-    <AuthProvider>
-      <Router>
-        <div className="min-h-screen flex flex-col font-sans bg-white text-black">
-          <Navbar lang={lang} setLang={setLang} />
-          <main className="flex-grow">
-            <Suspense fallback={
-              <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            }>
-              <Routes>
-                <Route path="/" element={<Home lang={lang} />} />
-                <Route path="/apartamente" element={<Apartments lang={lang} />} />
-                <Route path="/apartamente/:slug" element={<ApartmentDetail lang={lang} />} />
-                <Route path="/contact" element={<Contact lang={lang} />} />
-                <Route path="/login" element={<Auth lang={lang} />} />
-                <Route path="/admin/*" element={<Admin />} />
-                <Route path="/legal/:type" element={<Legal lang={lang} />} />
-                <Route path="/booking-success" element={<BookingSuccess />} />
-              </Routes>
-            </Suspense>
-          </main>
-          <Footer lang={lang} />
-          <DiscountPopup />
-          <Toaster position="top-center" />
-        </div>
-      </Router>
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent lang={lang} setLang={setLang} />
+        </Router>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { Reveal3D } from '../components/AnimatedComponents';
 
 const legalTranslations = {
   ro: {
@@ -102,23 +103,25 @@ export default function Legal({ lang = 'ro' }: { lang?: string }) {
   const current = t[type as keyof typeof t] || t.privacy;
 
   return (
-    <div className="pt-32 pb-24">
+    <div className="pt-32 pb-24 bg-[#fcfaf7]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h1 className="text-4xl font-serif mb-12">{current.title}</h1>
-          <div className="prose prose-neutral max-w-none text-neutral-800 leading-relaxed space-y-8 font-medium">
-            <p>{current.text}</p>
-            {current.sections.map((section, index) => (
-              <div key={index}>
-                <h3 className="text-xl font-bold text-black uppercase tracking-widest mt-12">{section.title}</h3>
-                <p>{section.content}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        <Reveal3D>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h1 className="text-4xl md:text-6xl font-display font-black tracking-tighter mb-12">{current.title}</h1>
+            <div className="prose prose-neutral max-w-none text-neutral-600 leading-relaxed space-y-8 font-light italic">
+              <p>{current.text}</p>
+              {current.sections.map((section, index) => (
+                <div key={index}>
+                  <h3 className="text-xl font-display font-black text-black uppercase tracking-widest mt-12">{section.title}</h3>
+                  <p className="not-italic font-sans font-light text-neutral-500">{section.content}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </Reveal3D>
       </div>
     </div>
   );

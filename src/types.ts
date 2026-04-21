@@ -58,3 +58,17 @@ export interface SiteSettings {
   instagramUrl: string;
   facebookUrl: string;
 }
+
+export interface SpecialOffer {
+  id: string;
+  title: string;
+  description: string;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  startDate: string;
+  endDate: string;
+  image?: string;
+  isActive: boolean;
+  applicableApartments?: string[]; // IDs of apartments
+  minNights?: number;
+}

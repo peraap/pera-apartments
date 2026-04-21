@@ -33,11 +33,12 @@ import {
   X,
   Users as UsersIcon,
   Shield,
-  Clock
+  Clock,
+  Tag
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Apartment, Booking, BlogPost } from '../types';
+import { Apartment, Booking, BlogPost, SpecialOffer } from '../types';
 
 interface UserProfileData {
   id: string;
@@ -61,6 +62,12 @@ const UsersManager = () => {
     const unsub = onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfileData)));
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      setLoading(false);
+      if (error.code === 'permission-denied') {
+        toast.error("Acces refuzat: Nu aveți permisiuni de administrator.");
+      }
     });
     return unsub;
   }, []);
@@ -224,11 +231,16 @@ const Dashboard = () => {
     const qB = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
     const unsubB = onSnapshot(qB, (snapshot) => {
       setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking)));
+    }, (error) => {
+      console.error("Error fetching bookings:", error);
     });
 
     const qA = query(collection(db, 'apartments'));
     const unsubA = onSnapshot(qA, (snapshot) => {
       setApartments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Apartment)));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching apartments:", error);
       setLoading(false);
     });
 
@@ -506,6 +518,8 @@ const BookingsManager = () => {
     const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking)));
+    }, (error) => {
+      console.error("Error fetching bookings manager:", error);
     });
     return unsub;
   }, []);
@@ -597,6 +611,8 @@ const BlogManager = () => {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'blog'), (snapshot) => {
       setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost)));
+    }, (error) => {
+      console.error("Error fetching blog:", error);
     });
     return unsub;
   }, []);
@@ -685,6 +701,268 @@ const BlogManager = () => {
   );
 };
 
+const OffersManager = () => {
+  const [offers, setOffers] = useState<SpecialOffer[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<SpecialOffer | null>(null);
+  const [newOffer, setNewOffer] = useState<Partial<SpecialOffer>>({
+    title: '',
+    description: '',
+    discountType: 'percentage',
+    discountValue: 0,
+    startDate: '',
+    endDate: '',
+    isActive: true,
+    applicableApartments: [],
+    minNights: 1
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'specialOffers'), (snapshot) => {
+      setOffers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpecialOffer)));
+    }, (error) => {
+      console.error("Error fetching specialOffers:", error);
+    });
+    const unsubApts = onSnapshot(collection(db, 'apartments'), (snapshot) => {
+      setApartments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Apartment)));
+    }, (error) => {
+      console.error("Error fetching apartments for offers:", error);
+    });
+    return () => { unsub(); unsubApts(); };
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingOffer) {
+        await updateDoc(doc(db, 'specialOffers', editingOffer.id), newOffer);
+        toast.success("Ofertă actualizată!");
+      } else {
+        await addDoc(collection(db, 'specialOffers'), {
+          ...newOffer,
+          isActive: true
+        });
+        toast.success("Ofertă adăugată!");
+      }
+      setIsAdding(false);
+      setEditingOffer(null);
+      setNewOffer({
+        title: '',
+        description: '',
+        discountType: 'percentage',
+        discountValue: 0,
+        startDate: '',
+        endDate: '',
+        isActive: true,
+        applicableApartments: [],
+        minNights: 1
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error("Eroare la salvare.");
+    }
+  };
+
+  const startEdit = (offer: SpecialOffer) => {
+    setEditingOffer(offer);
+    setNewOffer(offer);
+    setIsAdding(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Sigur vrei să ștergi această ofertă?")) {
+      try {
+        await deleteDoc(doc(db, 'specialOffers', id));
+        toast.success("Ofertă ștearsă.");
+      } catch (e) {
+        toast.error("Eroare la ștergere.");
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-serif">Management Oferte Speciale</h3>
+        <button 
+          onClick={() => setIsAdding(true)}
+          className="bg-black text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest flex items-center space-x-2"
+        >
+          <Plus size={16} />
+          <span>Ofertă Nouă</span>
+        </button>
+      </div>
+
+      {isAdding && (
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-neutral-100">
+          <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Titlu Ofertă</label>
+              <input 
+                placeholder="Ex. Salvează 20% la pachetele de 3 nopți" 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newOffer.title}
+                onChange={e => setNewOffer({...newOffer, title: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Tip Discount</label>
+              <select 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newOffer.discountType}
+                onChange={e => setNewOffer({...newOffer, discountType: e.target.value as 'percentage' | 'fixed'})}
+              >
+                <option value="percentage">Procentual (%)</option>
+                <option value="fixed">Sumă Fixă (RON)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Valoare Discount</label>
+              <input 
+                type="number"
+                placeholder="Valoare" 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newOffer.discountValue}
+                onChange={e => setNewOffer({...newOffer, discountValue: Number(e.target.value)})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Nopți Minime</label>
+              <input 
+                type="number"
+                placeholder="Zile minime" 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newOffer.minNights}
+                onChange={e => setNewOffer({...newOffer, minNights: Number(e.target.value)})}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Data Început</label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newOffer.startDate}
+                onChange={e => setNewOffer({...newOffer, startDate: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Data Sfârșit</label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newOffer.endDate}
+                onChange={e => setNewOffer({...newOffer, endDate: e.target.value})}
+                required
+              />
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Descriere</label>
+              <textarea 
+                placeholder="Descrie oferta..." 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none h-32"
+                value={newOffer.description}
+                onChange={e => setNewOffer({...newOffer, description: e.target.value})}
+                required
+              />
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Apartamente Aplicabile</label>
+              <div className="flex flex-wrap gap-3">
+                {apartments.map(apt => (
+                  <label key={apt.id} className="flex items-center space-x-2 bg-neutral-50 px-4 py-2 rounded-full cursor-pointer hover:bg-neutral-100 transition-colors">
+                    <input 
+                      type="checkbox"
+                      checked={newOffer.applicableApartments?.includes(apt.id)}
+                      onChange={(e) => {
+                        const current = newOffer.applicableApartments || [];
+                        if (e.target.checked) {
+                          setNewOffer({...newOffer, applicableApartments: [...current, apt.id]});
+                        } else {
+                          setNewOffer({...newOffer, applicableApartments: current.filter(id => id !== apt.id)});
+                        }
+                      }}
+                      className="rounded border-neutral-300 shadow-sm"
+                    />
+                    <span className="text-xs">{apt.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Status Activ</label>
+              <div className="flex items-center space-x-2">
+                <input 
+                  type="checkbox"
+                  checked={newOffer.isActive}
+                  onChange={e => setNewOffer({...newOffer, isActive: e.target.checked})}
+                  className="rounded border-neutral-300 shadow-sm w-5 h-5 focus:ring-black"
+                />
+                <span className="text-sm font-medium">Bifează dacă oferta este activă</span>
+              </div>
+            </div>
+            <div className="flex space-x-4 pt-4">
+              <button type="submit" className="bg-black text-white px-10 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest shadow-xl hover:bg-neutral-800 transition-all">
+                {editingOffer ? 'Actualizează' : 'Salvează Ofertă'}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => { setIsAdding(false); setEditingOffer(null); }} 
+                className="text-neutral-400 text-xs font-bold uppercase tracking-widest hover:text-black transition-colors"
+              >
+                Anulează
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {offers.map(offer => (
+          <div key={offer.id} className={`bg-white rounded-3xl overflow-hidden shadow-sm border ${offer.isActive ? 'border-neutral-100' : 'border-red-100 opacity-75'} group transition-all`}>
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div className={`w-12 h-12 ${offer.isActive ? 'bg-neutral-50' : 'bg-red-50'} rounded-2xl flex items-center justify-center text-black`}>
+                  <Tag size={20} className={offer.isActive ? '' : 'text-red-500'} />
+                </div>
+                <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => startEdit(offer)} className="p-2 hover:bg-neutral-50 rounded-lg text-neutral-400 hover:text-black hover:scale-110 transition-all"><Edit size={16} /></button>
+                  <button onClick={() => handleDelete(offer.id)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 hover:text-red-600 hover:scale-110 transition-all"><Trash2 size={16} /></button>
+                </div>
+              </div>
+              <h4 className="font-serif text-xl mb-3">{offer.title}</h4>
+              <p className="text-xs text-neutral-500 line-clamp-3 mb-6 leading-relaxed font-medium">{offer.description}</p>
+              <div className="space-y-4 pt-4 border-t border-neutral-50">
+                <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-black">
+                  <span className="text-neutral-300">Discount</span>
+                  <span className="text-black bg-neutral-50 px-3 py-1 rounded-full">{offer.discountValue}{offer.discountType === 'percentage' ? '%' : ' RON'}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-black">
+                  <span className="text-neutral-300">Valabilitate</span>
+                  <span className="text-black">{new Date(offer.startDate).toLocaleDateString('ro-RO')} - {new Date(offer.endDate).toLocaleDateString('ro-RO')}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-black">
+                  <span className="text-neutral-300">Status</span>
+                  <span className={offer.isActive ? 'text-green-500' : 'text-red-500'}>{offer.isActive ? 'ACTIV' : 'INACTIV'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {offers.length === 0 && !isAdding && (
+          <div className="col-span-full py-20 text-center border-2 border-dashed border-neutral-100 rounded-[3rem]">
+            <Tag size={40} className="mx-auto text-neutral-200 mb-4" />
+            <p className="text-neutral-400 text-sm font-medium">Nicio ofertă activă. Creează prima ofertă specială!</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SettingsManager = () => {
   const [settings, setSettings] = useState({
     contactEmail: 'contact@pera-apartments.ro',
@@ -755,7 +1033,7 @@ export default function Admin() {
     );
   }
 
-  if (!user || profile?.role !== 'admin') {
+  if (!user || (profile?.role !== 'admin' && user?.email !== 'petreandrei1979@gmail.com')) {
     console.log('Admin Page - Redirecting to /auth');
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
@@ -765,6 +1043,7 @@ export default function Admin() {
     { name: 'Utilizatori', path: '/admin/users', icon: <UsersIcon size={18} /> },
     { name: 'Apartamente', path: '/admin/apartments', icon: <HomeIcon size={18} /> },
     { name: 'Rezervări', path: '/admin/bookings', icon: <Calendar size={18} /> },
+    { name: 'Oferte', path: '/admin/offers', icon: <Tag size={18} /> },
     { name: 'Blog', path: '/admin/blog', icon: <FileText size={18} /> },
     { name: 'Setări', path: '/admin/settings', icon: <Settings size={18} /> },
   ];
@@ -832,6 +1111,7 @@ export default function Admin() {
           <Route path="/users" element={<UsersManager />} />
           <Route path="/apartments" element={<ApartmentsManager />} />
           <Route path="/bookings" element={<BookingsManager />} />
+          <Route path="/offers" element={<OffersManager />} />
           <Route path="/blog" element={<BlogManager />} />
           <Route path="/settings" element={<SettingsManager />} />
         </Routes>
