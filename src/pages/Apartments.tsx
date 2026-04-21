@@ -388,7 +388,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         </motion.div>
         
         {/* Floating Background Text */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none select-none">
+        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none">
           <FloatingElement duration={20} yOffset={30}>
             <div className="text-[30vw] font-display font-black leading-none tracking-tighter text-white">PERA</div>
           </FloatingElement>

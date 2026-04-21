@@ -460,7 +460,7 @@ const ApartmentPreview = ({ t, lang }: { t: any, lang: string }) => {
   return (
     <section id="apartamente" className="py-40 bg-white relative overflow-hidden">
       {/* Decorative Text background */}
-      <div className="absolute top-0 right-0 py-20 opacity-[0.03] select-none pointer-events-none">
+      <div className="absolute top-0 right-0 py-20 opacity-[0.06] select-none pointer-events-none">
         <FloatingElement duration={20} yOffset={20}>
           <div className="text-[25vw] font-display font-black leading-none tracking-tighter">PERA</div>
         </FloatingElement>
@@ -568,7 +568,7 @@ const Testimonials = ({ t }: { t: any }) => {
   return (
     <section className="py-40 bg-[#0a0a0a] text-white overflow-hidden relative">
       {/* Decorative Text background */}
-      <div className="absolute top-0 right-0 w-full h-full opacity-[0.03] select-none pointer-events-none flex items-center justify-center">
+      <div className="absolute top-0 right-0 w-full h-full opacity-10 select-none pointer-events-none flex items-center justify-center">
         <FloatingElement duration={25} yOffset={50}>
           <div className="text-[40vw] font-display font-black leading-none tracking-tighter">PERA</div>
         </FloatingElement>

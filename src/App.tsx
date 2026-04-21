@@ -102,6 +102,8 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const isHeaderSolid = scrolled || !['/', '/apartamente', '/contact'].includes(location.pathname);
+
   const navLinks = [
     { name: t.home, path: '/' },
     { name: t.contact, path: '/contact' },
@@ -117,15 +119,15 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
   const bookingLink = "https://www.booking.com/Share-QTimNJq";
 
   return (
-    <nav className={`fixed w-full z-50 transition-all duration-1000 ${scrolled ? 'bg-[#fcfaf7]/90 backdrop-blur-2xl shadow-xl py-3 border-b border-neutral-100' : 'bg-transparent py-6'}`}>
+    <nav className={`fixed w-full z-[150] transition-all duration-1000 ${isHeaderSolid ? 'bg-[#fcfaf7]/90 backdrop-blur-2xl shadow-xl py-3 border-b border-neutral-100' : 'bg-transparent py-6'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
           <Link to="/" className="flex items-center group">
             <motion.span 
               whileHover={{ scale: 1.05 }}
-              className={`text-2xl font-display font-bold tracking-tighter transition-colors duration-500 ${scrolled ? 'text-black' : 'text-white'}`}
+              className={`text-2xl font-display font-bold tracking-tighter transition-colors duration-500 ${isHeaderSolid ? 'text-black' : 'text-white'}`}
             >
-              PERA <span className={`font-light italic transition-colors duration-500 ${scrolled ? 'text-neutral-500' : 'text-white/70'}`}>Apartments</span>
+              PERA <span className={`font-light italic transition-colors duration-500 ${isHeaderSolid ? 'text-neutral-500' : 'text-white/70'}`}>Apartments</span>
             </motion.span>
           </Link>
 
@@ -135,7 +137,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                 <Magnetic>
                   <Link 
                     to={link.path}
-                    className={`text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 relative after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1px] after:bg-current after:transition-all hover:after:w-full ${scrolled ? 'text-black' : 'text-white'}`}
+                    className={`text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 relative after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1px] after:bg-current after:transition-all hover:after:w-full ${isHeaderSolid ? 'text-black' : 'text-white'}`}
                   >
                     {link.name}
                   </Link>
@@ -146,7 +148,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
             {/* Info Dropdown */}
             <SmoothIn direction="down" delay={0.2}>
               <div className="relative group/info" onMouseEnter={() => setIsInfoOpen(true)} onMouseLeave={() => setIsInfoOpen(false)}>
-                <button className={`flex items-center text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${scrolled ? 'text-black' : 'text-white'}`}>
+                <button className={`flex items-center text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${isHeaderSolid ? 'text-black' : 'text-white'}`}>
                   {t.info}
                   <ChevronDown size={14} className={`ml-1 transition-transform duration-300 ${isInfoOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -179,7 +181,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                 {user ? (
                   <div className="flex items-center space-x-3 cursor-pointer">
                     <div className="text-right hidden lg:block">
-                      <p className={`text-xs font-bold tracking-tight ${scrolled ? 'text-black' : 'text-white'}`}>
+                      <p className={`text-xs font-bold tracking-tight ${isHeaderSolid ? 'text-black' : 'text-white'}`}>
                         {profile?.displayName || user.email?.split('@')[0]}
                       </p>
                       <p className="text-base font-black text-yellow-500 tracking-tight">
@@ -188,19 +190,19 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
                     </div>
                     <motion.div 
                       whileHover={{ scale: 1.1, rotate: 5 }}
-                      className={`w-10 h-10 rounded-full border-2 flex items-center justify-center overflow-hidden transition-all duration-500 shadow-xl ${scrolled ? 'border-black' : 'border-white/30'}`}
+                      className={`w-10 h-10 rounded-full border-2 flex items-center justify-center overflow-hidden transition-all duration-500 shadow-xl ${isHeaderSolid ? 'border-black' : 'border-white/30'}`}
                     >
                       {user.photoURL ? (
                         <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
-                        <User size={18} className={scrolled ? 'text-black' : 'text-white'} />
+                        <User size={18} className={isHeaderSolid ? 'text-black' : 'text-white'} />
                       )}
                     </motion.div>
                   </div>
                 ) : (
                   <Link 
                     to="/login"
-                    className={`flex items-center space-x-2 text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${scrolled ? 'text-black' : 'text-white'}`}
+                    className={`flex items-center space-x-2 text-[15px] font-semibold tracking-tight transition-all duration-500 hover:opacity-50 ${isHeaderSolid ? 'text-black' : 'text-white'}`}
                   >
                     <User size={16} />
                     <span>Login</span>
@@ -246,14 +248,14 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
               <div className="flex items-center space-x-2 border-l border-white/20 pl-6 ml-6">
                 <button 
                   onClick={() => setLang('ro')}
-                  className={`text-xs font-black transition-all ${lang === 'ro' ? (scrolled ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
+                  className={`text-xs font-black transition-all ${lang === 'ro' ? (isHeaderSolid ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
                 >
                   RO
                 </button>
                 <span className="text-neutral-500 text-xs">/</span>
                 <button 
                   onClick={() => setLang('en')}
-                  className={`text-xs font-black transition-all ${lang === 'en' ? (scrolled ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
+                  className={`text-xs font-black transition-all ${lang === 'en' ? (isHeaderSolid ? 'text-black' : 'text-white') : 'text-neutral-500 hover:text-neutral-300'}`}
                 >
                   EN
                 </button>
@@ -264,7 +266,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
               <Magnetic>
                 <Link 
                   to="/apartamente"
-                  className={`px-10 py-4 rounded-full text-sm font-black uppercase tracking-widest transition-all duration-500 ${scrolled ? 'bg-black text-white hover:bg-neutral-800 shadow-2xl shadow-black/20' : 'bg-white text-black hover:bg-neutral-100'}`}
+                  className={`px-10 py-4 rounded-full text-sm font-black uppercase tracking-widest transition-all duration-500 ${isHeaderSolid ? 'bg-black text-white hover:bg-neutral-800 shadow-2xl shadow-black/20' : 'bg-white text-black hover:bg-neutral-100'}`}
                 >
                   {t.reserve}
                 </Link>
@@ -276,13 +278,13 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
           <div className="md:hidden flex items-center space-x-4">
             <button 
               onClick={() => setLang(lang === 'ro' ? 'en' : 'ro')}
-              className={`text-xs font-bold tracking-tight ${scrolled ? 'text-black' : 'text-white'}`}
+              className={`text-xs font-bold tracking-tight ${isHeaderSolid ? 'text-black' : 'text-white'}`}
             >
               {lang === 'ro' ? 'EN' : 'RO'}
             </button>
             <button 
               onClick={() => setIsOpen(!isOpen)}
-              className={scrolled ? 'text-black' : 'text-white'}
+              className={isHeaderSolid ? 'text-black' : 'text-white'}
             >
               {isOpen ? <X size={28} /> : <Menu size={28} />}
             </button>
@@ -604,7 +606,7 @@ const AppContent = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 
       
       {/* Scroll Progress Bar */}
       <motion.div
-        className="fixed top-0 left-0 right-0 h-1 bg-black z-[100] origin-left"
+        className="fixed top-0 left-0 right-0 h-1 bg-black z-[200] origin-left"
         style={{ scaleX: useScroll().scrollYProgress }}
       />
 

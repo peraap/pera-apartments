@@ -163,7 +163,7 @@ export default function Contact({ lang = 'ro' }: { lang?: string }) {
                   <span className="text-[10px] uppercase tracking-[1.5em] font-black text-white/50 mb-8 block">{t.tag}</span>
                   <h1 className="text-6xl md:text-8xl lg:text-9xl font-display font-black mb-12 leading-[0.85] tracking-tighter text-white">
                     <TextReveal text={t.title.split('te ajutăm')[0]} />
-                    <span className="italic font-light text-vibrant-indigo block">
+                    <span className="italic font-light text-white block">
                       <TextReveal text={lang === 'ro' ? 'te ajutăm.' : 'help you.'} />
                     </span>
                   </h1>
