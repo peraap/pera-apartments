@@ -519,7 +519,7 @@ const Footer = ({ lang }: { lang: 'ro' | 'en' }) => {
 
         <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
           <p>© 2026 PERA APARTMENTS. {t.rights}</p>
-          <div className="flex space-y-10 mt-6 md:mt-0">
+          <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-10 mt-8 md:mt-0">
             <Link to="/legal/privacy" className="hover:text-white transition-colors">{t.privacy}</Link>
             <Link to="/legal/terms" className="hover:text-white transition-colors">{t.terms}</Link>
             <Link to="/admin" className="flex items-center space-x-2 hover:text-white transition-colors">
