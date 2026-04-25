@@ -76,6 +76,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // Silently handle background update errors
                 if (err.code !== 'permission-denied') console.error('Error updating lastLogin:', err);
               });
+
+              // Log to Google Sheets
+              fetch('/api/log-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: currentUser.email,
+                  displayName: data.displayName || currentUser.displayName,
+                  method: 'Firebase Auth'
+                })
+              }).catch(console.error);
             }
           } else {
             console.log('Creating initial profile...');
@@ -93,6 +104,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               console.error('Error creating profile:', err);
             });
             setProfile(initialProfile);
+
+            // Log NEW user to Google Sheets
+            fetch('/api/log-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: currentUser.email,
+                displayName: initialProfile.displayName,
+                method: 'Firebase Auth (New User)'
+              })
+            }).catch(console.error);
           }
           setLoading(false);
         }, (error) => {

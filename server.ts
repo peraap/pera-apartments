@@ -9,6 +9,7 @@ import nodemailer from "nodemailer";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc } from "firebase/firestore";
 import { firebaseConfig } from "./src/firebase-config";
+import { logBookingToSheet, logLoginToSheet } from "./google-sheets-storage";
 
 dotenv.config();
 
@@ -82,9 +83,7 @@ async function startServer() {
       try {
         const metadata = session.metadata;
         if (metadata) {
-          // 1. Save to Firestore
-          if (db) {
-            await addDoc(collection(db, 'bookings'), {
+            const bookingData = {
               apartmentId: metadata.apartmentId,
               apartmentName: metadata.apartmentName || 'Apartament Pera',
               checkIn: metadata.checkIn,
@@ -97,13 +96,21 @@ async function startServer() {
               sessionId: session.id,
               createdAt: new Date().toISOString(),
               source: 'stripe_webhook_preview'
-            });
-            console.log(`Booking saved for session ${session.id}`);
-          } else {
-            console.error("Firestore database is not initialized. Booking not saved.");
-          }
+            };
 
-          // 2. Send Confirmation Email
+            if (db) {
+              await addDoc(collection(db, 'bookings'), bookingData);
+              console.log(`Booking saved to Firestore for session ${session.id}`);
+            }
+
+            // 1.5. Log to Google Sheets
+            try {
+              await logBookingToSheet(bookingData);
+            } catch (sheetError) {
+              console.error("Failed to log booking to Google Sheets:", sheetError);
+            }
+
+            // 2. Send Confirmation Email
           const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
           if (metadata.guestEmail) {
             recipients.push(metadata.guestEmail);
@@ -157,7 +164,10 @@ async function startServer() {
     console.log(`[${new Date().toISOString()}] Attempting to send discount email to: ${req.body.email}`);
     try {
       const { email, name } = req.body;
-
+      
+      // Log lead to sheet as a "login" or similar? 
+      // For now, let's keep it clean and only log actual logins to the dedicated endpoint
+      
       if (!process.env.GMAIL_APP_PASSWORD) {
         console.error("GMAIL_APP_PASSWORD is missing in environment variables!");
         return res.status(500).json({ error: "Configurația de email lipsește." });
@@ -256,6 +266,19 @@ async function startServer() {
         metadata: session.metadata 
       });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/log-login", async (req, res) => {
+    try {
+      const { email, displayName, method } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required" });
+      
+      await logLoginToSheet({ email, displayName, method });
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error logging login to sheet:", error);
       res.status(500).json({ error: error.message });
     }
   });
