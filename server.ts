@@ -16,7 +16,6 @@ import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
 import { google } from "googleapis";
 import admin from "firebase-admin";
 import { adminDb } from "./firebase-admin-service";
-import dotenv from "dotenv";
 import { eachDayOfInterval, format, parseISO } from "date-fns";
 
 dotenv.config();
@@ -456,17 +455,6 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error logging login to sheet:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/blocked-dates/:slug", async (req, res) => {
-    try {
-      const { slug } = req.params;
-      const blockedDates = await getApartmentBlockedDates(slug);
-      res.json({ blockedDates });
-    } catch (error: any) {
-      console.error("Error fetching blocked dates:", error);
       res.status(500).json({ error: error.message });
     }
   });

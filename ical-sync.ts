@@ -3,6 +3,13 @@ import axios from 'axios';
 import { eachDayOfInterval, format, parseISO, isAfter, startOfDay } from 'date-fns';
 import { getBlockedDatesFromCalendar } from './google-calendar-service';
 import { adminDb } from './firebase-admin-service';
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { firebaseConfig } from "./src/firebase-config";
+
+// Fallback client SDK for when Admin SDK is missing
+const clientApp = initializeApp(firebaseConfig);
+const clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '(default)');
 
 export async function getBlockedDatesFromIcal(url: string): Promise<string[]> {
   try {
@@ -61,17 +68,13 @@ export async function getApartmentBlockedDates(slug: string): Promise<string[]> 
   // 3. Check manual blocks in Firestore
   let manualDates: string[] = [];
   try {
+    const normalizedSlug = slug.trim().toLowerCase();
+    
     if (adminDb) {
-      console.log(`[iCal Sync] Checking manual blocks for: ${slug}`);
-      const snapshot = await adminDb.collection('manual_blocks')
-        .get();
-      
+      const snapshot = await adminDb.collection('manual_blocks').get();
       snapshot.forEach((doc: any) => {
         const block = doc.data();
-        
-        // Match by slug or a loose name match
-        const blockAptId = (block.apartmentId || '').toLowerCase();
-        const normalizedSlug = slug.toLowerCase();
+        const blockAptId = (block.apartmentId || '').trim().toLowerCase();
         
         const isMatch = blockAptId === normalizedSlug || 
                         normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
@@ -83,19 +86,34 @@ export async function getApartmentBlockedDates(slug: string): Promise<string[]> 
               start: parseISO(block.startDate),
               end: parseISO(block.endDate)
             });
-            const formattedRange = range.map(d => format(d, 'yyyy-MM-dd'));
-            manualDates = [...manualDates, ...formattedRange];
-            console.log(`[iCal Sync] Blocked range from doc ${doc.id}: ${formattedRange.join(', ')}`);
-          } catch (dateErr) {
-            console.error(`[iCal Sync] Invalid dates in doc ${doc.id}:`, block.startDate, block.endDate);
-          }
+            manualDates = [...manualDates, ...range.map(d => format(d, 'yyyy-MM-dd'))];
+          } catch (e) {}
         }
       });
     } else {
-      console.warn("[iCal Sync] adminDb not available for manual blocks check");
+      // Fallback: Use client JS SDK (works in Node.js)
+      const querySnapshot = await getDocs(collection(clientDb, 'manual_blocks'));
+      querySnapshot.forEach((doc) => {
+        const block = doc.data();
+        const blockAptId = (block.apartmentId || '').trim().toLowerCase();
+        
+        const isMatch = blockAptId === normalizedSlug || 
+                        normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
+                        blockAptId.includes(normalizedSlug.replace(/-/g, ' '));
+
+        if (isMatch && block.startDate && block.endDate) {
+          try {
+            const range = eachDayOfInterval({
+              start: parseISO(block.startDate),
+              end: parseISO(block.endDate)
+            });
+            manualDates = [...manualDates, ...range.map(d => format(d, 'yyyy-MM-dd'))];
+          } catch (e) {}
+        }
+      });
     }
   } catch (e: any) {
-    console.error("[iCal Sync] Manual blocks fetch failed:", e.message);
+    console.error("[iCal Sync] Firestore manual_blocks query failed:", e.message);
   }
 
   // Merge and remove duplicates from all sources

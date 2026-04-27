@@ -164,5 +164,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /manual_blocks/{blockId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
