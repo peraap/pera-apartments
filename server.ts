@@ -63,9 +63,8 @@ async function startServer() {
 
   // Maintenance Mode Middleware
   app.use((req, res, next) => {
-    // If you want to enable/disable via env var, use: process.env.MAINTENANCE_MODE === 'true'
-    // Forcing it to true now as requested by user to "take down the site"
-    const isMaintenance = true; 
+    // Maintenance Mode Switch
+    const isMaintenance = process.env.MAINTENANCE_MODE === 'true' || true; 
     
     // We allow internal health checks but block everything else for visitors
     if (isMaintenance && !req.path.startsWith('/api/health')) {
