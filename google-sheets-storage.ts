@@ -3,30 +3,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/calendar'
+];
 
-async function getSheetsClient() {
+export async function getSheetsAuth() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
-  if (!email || !privateKey || !spreadsheetId) {
-    console.warn("Google Sheets configuration is incomplete. Skipping sheet updates.");
-    return null;
-  }
+  if (!email || !privateKey) return null;
 
-  try {
-    const auth = new google.auth.JWT({
-      email,
-      key: privateKey,
-      scopes: SCOPES,
-    });
+  return new google.auth.JWT({
+    email,
+    key: privateKey,
+    scopes: SCOPES,
+  });
+}
 
-    return google.sheets({ version: 'v4', auth });
-  } catch (error) {
-    console.error("Failed to initialize Google Sheets client:", error);
-    return null;
-  }
+export async function getSheetsClient() {
+  const auth = await getSheetsAuth();
+  if (!auth) return null;
+  return google.sheets({ version: 'v4', auth });
 }
 
 export async function logBookingToSheet(bookingData: any) {

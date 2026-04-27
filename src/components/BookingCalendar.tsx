@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, addDays, isBefore, isAfter, startOfDay, eachDayOfInterval, isWithinInterval, differenceInDays } from 'date-fns';
+import { format, addDays, isBefore, isAfter, startOfDay, eachDayOfInterval, isWithinInterval, differenceInDays, parseISO } from 'date-fns';
 import { DayPicker, DateRange } from 'react-day-picker';
 import 'react-day-picker/style.css';
 import { Calendar as CalendarIcon, CreditCard, Loader2, Info, ArrowRight, Tag, Check, ChevronDown } from 'lucide-react';
@@ -15,9 +15,10 @@ interface BookingCalendarProps {
   apartmentId: string;
   apartmentName: string;
   pricePerNight: number;
+  slug: string;
 }
 
-export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, apartmentName, pricePerNight }) => {
+export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, apartmentName, pricePerNight, slug }) => {
   const { user } = useAuth();
   const [range, setRange] = useState<DateRange | undefined>();
   const [bookedDates, setBookedDates] = useState<Date[]>([]);
@@ -32,7 +33,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   useEffect(() => {
     fetchBookedDates();
     fetchOffers();
-  }, [apartmentId]);
+  }, [apartmentId, slug]);
 
   const fetchOffers = () => {
     const q = query(
@@ -56,6 +57,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   const fetchBookedDates = async () => {
     setCheckingAvailability(true);
     try {
+      // 1. Fetch bookings from local database (Firestore)
       const q = query(
         collection(db, 'bookings'),
         where('apartmentId', '==', apartmentId),
@@ -70,6 +72,22 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         const interval = eachDayOfInterval({ start, end });
         dates.push(...interval);
       });
+
+      // 2. Fetch external bookings from iCal (Airbnb/Booking.com) via our API
+      try {
+        const response = await fetch(`/api/blocked-dates/${slug}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.blockedDates && Array.isArray(data.blockedDates)) {
+            data.blockedDates.forEach((dateStr: string) => {
+              dates.push(parseISO(dateStr));
+            });
+          }
+        }
+      } catch (apiError) {
+        console.error('Error fetching external blocked dates:', apiError);
+      }
+
       setBookedDates(dates);
     } catch (error) {
       console.error('Error fetching booked dates:', error);

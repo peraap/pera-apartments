@@ -7,15 +7,21 @@ import dotenv from "dotenv";
 import cors from "cors";
 import nodemailer from "nodemailer";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc } from "firebase/firestore";
+import { getFirestore, query, where, getDocs, collection, addDoc } from "firebase/firestore";
 import { firebaseConfig } from "./src/firebase-config";
-import { logBookingToSheet, logLoginToSheet } from "./google-sheets-storage";
+import { logBookingToSheet, logLoginToSheet, getSheetsAuth } from "./google-sheets-storage";
+import { addBookingToCalendar } from "./google-calendar-service";
+import { getApartmentBlockedDates } from "./ical-sync";
+import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
+import { google } from "googleapis";
+import admin from "firebase-admin";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Initialize Firebase Client SDK
 let firebaseApp: any;
 let db: any;
 
@@ -23,7 +29,41 @@ try {
   firebaseApp = initializeApp(firebaseConfig);
   db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || '(default)');
 } catch (error) {
-  console.error("Firebase initialization failed:", error);
+  console.error("Firebase client initialization failed:", error);
+}
+
+// Initialize Firebase Admin SDK for server-side privileged operations
+let adminDb: any;
+try {
+  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (serviceAccountEmail && privateKey) {
+    if (admin.apps.length === 0) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: firebaseConfig.projectId,
+          clientEmail: serviceAccountEmail,
+          privateKey: privateKey,
+        })
+      });
+    }
+    
+    const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+    console.log(`[Firebase Admin] Attempting to connect to database: ${dbId} in project: ${firebaseConfig.projectId}`);
+    
+    if (dbId === '(default)') {
+      adminDb = admin.firestore();
+    } else {
+      adminDb = admin.firestore(dbId);
+    }
+    
+    console.log("Firebase Admin SDK initialized successfully");
+  } else {
+    console.warn("Skipping Firebase Admin initialization: Missing service account credentials.");
+  }
+} catch (error) {
+  console.error("Firebase Admin initialization failed:", error);
 }
 
 let stripe: Stripe;
@@ -103,11 +143,14 @@ async function startServer() {
               console.log(`Booking saved to Firestore for session ${session.id}`);
             }
 
-            // 1.5. Log to Google Sheets
+            // 1.5. Log to Google Sheets & Calendar
             try {
-              await logBookingToSheet(bookingData);
-            } catch (sheetError) {
-              console.error("Failed to log booking to Google Sheets:", sheetError);
+              await Promise.all([
+                logBookingToSheet(bookingData),
+                addBookingToCalendar(bookingData)
+              ]);
+            } catch (syncError) {
+              console.error("Failed to sync booking to Google Services:", syncError);
             }
 
             // 2. Send Confirmation Email
@@ -160,13 +203,121 @@ async function startServer() {
   app.use(express.json());
 
   // 2. API ROUTES (Defined directly on app for maximum priority)
+  const handleIcalExport = async (req: any, res: any) => {
+    try {
+      let slug = req.params[0] || req.params.slug;
+      if (slug && slug.toLowerCase().endsWith('.ics')) {
+        slug = slug.substring(0, slug.length - 4);
+      }
+      
+      if (!slug) {
+        return res.status(400).send("Slug required");
+      }
+
+      console.log(`[iCal Export] Generating for: ${slug}`);
+
+      const calendar = ical({ 
+        name: `Pera Apartments - ${slug}`,
+        prodId: { company: 'Pera Apartments', product: 'Booking Sync', language: 'RO' },
+        method: ICalCalendarMethod.PUBLISH
+      });
+
+      if (adminDb || db) {
+        let querySnapshot;
+        try {
+          if (adminDb) {
+            console.log("[iCal Export] fetching bookings using Admin SDK...");
+            querySnapshot = await adminDb.collection('bookings')
+              .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
+              .get();
+          } else {
+            console.log("[iCal Export] Using Client SDK for Firestore access");
+            const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
+            querySnapshot = await getDocs(q);
+          }
+        } catch (fetchError: any) {
+          console.error("[iCal Export] Fetch failed:", fetchError.message);
+          // Create a mock snapshot that does nothing when iterated
+          querySnapshot = { forEach: () => {} };
+        }
+        
+        let hasEvents = false;
+        querySnapshot.forEach((doc: any) => {
+          const booking = doc.data();
+          const matchesSlug = booking.apartmentId === slug || 
+                             (booking.apartmentName && booking.apartmentName.toLowerCase().includes(slug.replace(/-/g, ' '))) ||
+                             (slug === 'peraconfort' && booking.apartmentId === 'pera-confort') ||
+                             (slug === 'peraduo' && booking.apartmentId === 'pera-duo') ||
+                             (booking.shortName && booking.shortName.toLowerCase() === slug.toLowerCase());
+          
+          if (matchesSlug && booking.checkIn && booking.checkOut) {
+            hasEvents = true;
+            calendar.createEvent({
+              id: doc.id,
+              start: new Date(booking.checkIn),
+              end: new Date(booking.checkOut),
+              allDay: true,
+              summary: 'Rezervare Site (Pera Apartments)',
+              description: `Oaspete: ${booking.guestName}`,
+              location: 'Pera Apartments, Cristian, Brasov',
+              url: 'https://peraapartments.ro',
+              busystatus: ICalEventBusyStatus.BUSY
+            });
+          }
+        });
+
+        // Add a placeholder event if empty to pass validation
+        if (!hasEvents) {
+          calendar.createEvent({
+            id: `placeholder-${slug}`,
+            start: new Date(),
+            end: new Date(),
+            allDay: true,
+            summary: 'Sync Active',
+            description: 'Pera Apartments Calendar Sync Connection',
+            busystatus: ICalEventBusyStatus.FREE
+          });
+        }
+      }
+
+      const output = calendar.toString();
+      
+      // Strict headers for iCal validators
+      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      
+      return res.status(200).send(output);
+    } catch (error: any) {
+      console.error("[iCal Export] Error:", error);
+      return res.status(500).json({ 
+        error: "Internal Server Error", 
+        message: error.message,
+        stack: error.stack,
+        slug: req.params[0] || req.params.slug
+      });
+    }
+  };
+
+  app.get(/^\/api\/export-ical\/(.+)$/, handleIcalExport);
+  app.get("/api/export-ical/:slug", handleIcalExport);
+
+  app.get("/api/blocked-dates/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const blockedDates = await getApartmentBlockedDates(slug);
+      res.json({ blockedDates });
+    } catch (error: any) {
+      console.error("Error fetching blocked dates:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/send-discount-email", async (req, res) => {
     console.log(`[${new Date().toISOString()}] Attempting to send discount email to: ${req.body.email}`);
     try {
       const { email, name } = req.body;
-      
-      // Log lead to sheet as a "login" or similar? 
-      // For now, let's keep it clean and only log actual logins to the dedicated endpoint
       
       if (!process.env.GMAIL_APP_PASSWORD) {
         console.error("GMAIL_APP_PASSWORD is missing in environment variables!");
@@ -270,6 +421,38 @@ async function startServer() {
     }
   });
 
+  app.get("/api/log-login", async (req, res) => {
+    try {
+      const auth = await getSheetsAuth();
+      if (!auth) throw new Error("Google Sheets auth not configured");
+      const sheets = google.sheets({ version: 'v4', auth });
+      const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'Autentificari!A2:E100',
+      });
+      res.json({ logs: response.data.values || [] });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sheet-bookings", async (req, res) => {
+    try {
+      const auth = await getSheetsAuth();
+      if (!auth) throw new Error("Google Sheets auth not configured");
+      const sheets = google.sheets({ version: 'v4', auth });
+      const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'Rezervari!A2:K200',
+      });
+      res.json({ bookings: response.data.values || [] });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/log-login", async (req, res) => {
     try {
       const { email, displayName, method } = req.body;
@@ -279,6 +462,17 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error logging login to sheet:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/blocked-dates/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const blockedDates = await getApartmentBlockedDates(slug);
+      res.json({ blockedDates });
+    } catch (error: any) {
+      console.error("Error fetching blocked dates:", error);
       res.status(500).json({ error: error.message });
     }
   });

@@ -529,7 +529,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
                       <BookingCalendar 
                         apartmentId={apartment.id} 
                         apartmentName={apartment.name} 
-                        pricePerNight={apartment.pricePerNight} 
+                        pricePerNight={apartment.pricePerNight}
+                        slug={apartment.slug}
                       />
                     </TiltCard>
                   </div>

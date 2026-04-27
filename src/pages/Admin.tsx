@@ -51,6 +51,122 @@ interface UserProfileData {
   photoURL?: string;
 }
 
+const SheetsBookingsTable = () => {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/sheet-bookings')
+      .then(res => res.json())
+      .then(data => {
+        setBookings(data.bookings || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching sheet bookings:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div className="p-8 text-center text-neutral-400">Se încarcă datele din Google Sheets...</div>;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-neutral-50 text-[10px] uppercase tracking-widest font-bold text-neutral-400">
+          <tr>
+            <th className="px-8 py-4">ID</th>
+            <th className="px-8 py-4">Oaspete</th>
+            <th className="px-8 py-4">Apartament</th>
+            <th className="px-8 py-4">Perioadă</th>
+            <th className="px-8 py-4">Preț</th>
+            <th className="px-8 py-4">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {bookings.map((b, idx) => (
+            <tr key={idx} className="hover:bg-neutral-50 transition-colors">
+              <td className="px-8 py-6 font-mono text-neutral-400">{b[0]}</td>
+              <td className="px-8 py-6">
+                <span className="font-bold block">{b[2]}</span>
+                <span className="text-[10px] text-neutral-400">{b[3]}</span>
+              </td>
+              <td className="px-8 py-6 text-neutral-600">{b[4]}</td>
+              <td className="px-8 py-6 text-neutral-600">
+                {b[5]} - {b[6]}
+              </td>
+              <td className="px-8 py-6 font-bold">{b[7]}</td>
+              <td className="px-8 py-6">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                  b[8] === 'confirmed' || b[8] === 'paid' ? 'bg-green-100 text-green-700' : 
+                  b[8] === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {b[8]}
+                </span>
+              </td>
+            </tr>
+          ))}
+          {bookings.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-8 py-12 text-center text-neutral-400">Nicio rezervare găsită în Google Sheets.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const SheetsLogsTable = () => {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/log-login')
+      .then(res => res.json())
+      .then(data => {
+        setLogs(data.logs || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching sheet logs:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div className="p-8 text-center text-neutral-400">Se încarcă logurile...</div>;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-neutral-50 text-[10px] uppercase tracking-widest font-bold text-neutral-400">
+          <tr>
+            <th className="px-8 py-4">ID</th>
+            <th className="px-8 py-4">Dată/Oră</th>
+            <th className="px-8 py-4">Utilizator</th>
+            <th className="px-8 py-4">Metodă</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {logs.map((l, idx) => (
+            <tr key={idx} className="hover:bg-neutral-50 transition-colors">
+              <td className="px-8 py-6 font-mono text-neutral-400">{l[0]}</td>
+              <td className="px-8 py-6 text-neutral-600">{l[1]}</td>
+              <td className="px-8 py-6">
+                <span className="font-bold block">{l[2]}</span>
+                <span className="text-[10px] text-neutral-400">{l[3]}</span>
+              </td>
+              <td className="px-8 py-6">
+                <span className="px-2 py-1 bg-neutral-100 rounded text-[10px] font-bold uppercase tracking-widest text-neutral-500">{l[4]}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const UsersManager = () => {
   const [users, setUsers] = useState<UserProfileData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,11 +222,13 @@ const UsersManager = () => {
         <h3 className="text-2xl font-serif">Utilizatori & Activitate</h3>
         <div className="flex items-center space-x-2 text-xs text-neutral-400 uppercase tracking-widest">
           <Clock size={14} />
-          <span>Ultima activitate în timp real</span>
+          <span>Real-time Sync (Firestore)</span>
         </div>
       </div>
 
+      {/* Firestore Users */}
       <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden">
+        {/* ... existing table code kept for role management ... */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-neutral-50 text-[10px] uppercase tracking-widest font-bold text-neutral-400">
@@ -181,6 +299,13 @@ const UsersManager = () => {
         </div>
       </div>
 
+      <div className="pt-12">
+        <h4 className="text-xl font-serif mb-6">Log-uri Activitate (Google Sheets)</h4>
+        <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden">
+          <SheetsLogsTable />
+        </div>
+      </div>
+
       {/* Points Modal */}
       {editingPoints && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -222,6 +347,48 @@ const UsersManager = () => {
   );
 };
 
+const SyncInfo = () => {
+  const icalLinks = [
+    { name: "Premium King", slug: "apartament-premium-king" },
+    { name: "Deluxe Double", slug: "apartament-deluxe-double" },
+    { name: "Family Standard", slug: "apartament-family-standard" },
+    { name: "Family Deluxe", slug: "apartament-family-deluxe" },
+    { name: "Pera Duo", slug: "peraduo" },
+    { name: "Pera Confort", slug: "peraconfort" },
+  ];
+
+  const baseUrl = window.location.origin;
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
+        <h3 className="text-lg font-serif mb-4 flex items-center gap-2">
+          <Settings className="text-blue-500" size={20} />
+          Sincronizare Calendare (iCal Export)
+        </h3>
+        <p className="text-sm text-blue-800 mb-4">
+          Copiați aceste link-uri și adăugați-le în Airbnb sau Booking.com la secțiunea "Import Calendar" pentru a sincroniza rezervările de pe site.
+        </p>
+        {window.location.hostname.includes('ais-dev') && (
+          <div className="mb-4 p-3 bg-blue-100 rounded-xl text-[10px] text-blue-700 font-bold border border-blue-200">
+            NOTĂ: Pentru ca Airbnb/Booking să poată accesa aceste link-uri, trebuie să folosiți varianta "SHARE" a aplicației (Shared App URL), nu link-ul de test (Development URL).
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {icalLinks.map(link => (
+            <div key={link.slug} className="bg-white p-4 rounded-2xl shadow-sm border border-blue-200/50">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">{link.name}</span>
+              <code className="text-[10px] text-blue-600 break-all bg-blue-50 px-2 py-1 rounded block select-all">
+                {`${baseUrl}/api/export-ical/${link.slug}.ics`}
+              </code>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
@@ -258,6 +425,8 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-12">
+      <SyncInfo />
+      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-neutral-100">
           <span className="text-[10px] uppercase tracking-widest font-bold text-neutral-400 block mb-2">Total Rezervări</span>
@@ -275,50 +444,15 @@ const Dashboard = () => {
 
       <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden">
         <div className="p-8 border-b border-neutral-100 flex justify-between items-center">
-          <h3 className="text-xl font-serif">Rezervări Recente</h3>
-          <Link to="/admin/bookings" className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-black">Vezi Tot</Link>
+          <h3 className="text-xl font-serif">Rezervări (Google Sheets)</h3>
+          <div className="flex items-center gap-4">
+            <span className="text-[10px] text-green-500 font-bold uppercase tracking-widest flex items-center gap-1">
+              <Check size={12} /> Sync Activ
+            </span>
+            <Link to="/admin/bookings" className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-black">Management Complet</Link>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-neutral-50 text-[10px] uppercase tracking-widest font-bold text-neutral-400">
-              <tr>
-                <th className="px-8 py-4">Oaspete</th>
-                <th className="px-8 py-4">Apartament</th>
-                <th className="px-8 py-4">Perioadă</th>
-                <th className="px-8 py-4">Status</th>
-                <th className="px-8 py-4">Acțiuni</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {bookings.slice(0, 5).map((b) => (
-                <tr key={b.id} className="hover:bg-neutral-50 transition-colors">
-                  <td className="px-8 py-6">
-                    <span className="font-bold block">{b.guestName}</span>
-                    <span className="text-[10px] text-neutral-400">{b.guestEmail}</span>
-                  </td>
-                  <td className="px-8 py-6 text-neutral-600">{b.apartmentId}</td>
-                  <td className="px-8 py-6 text-neutral-600">
-                    {new Date(b.checkIn).toLocaleDateString()} - {new Date(b.checkOut).toLocaleDateString()}
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                      b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 
-                      b.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {b.status}
-                    </span>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex space-x-2">
-                      <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="p-2 hover:bg-green-50 text-green-600 rounded-lg"><Check size={16} /></button>
-                      <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="p-2 hover:bg-red-50 text-red-600 rounded-lg"><X size={16} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SheetsBookingsTable />
       </div>
     </div>
   );
