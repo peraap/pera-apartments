@@ -15,6 +15,9 @@ import { getApartmentBlockedDates } from "./ical-sync";
 import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
 import { google } from "googleapis";
 import admin from "firebase-admin";
+import { adminDb } from "./firebase-admin-service";
+import dotenv from "dotenv";
+import { eachDayOfInterval, format, parseISO } from "date-fns";
 
 dotenv.config();
 
@@ -32,39 +35,7 @@ try {
   console.error("Firebase client initialization failed:", error);
 }
 
-// Initialize Firebase Admin SDK for server-side privileged operations
-let adminDb: any;
-try {
-  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-  if (serviceAccountEmail && privateKey) {
-    if (admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: firebaseConfig.projectId,
-          clientEmail: serviceAccountEmail,
-          privateKey: privateKey,
-        })
-      });
-    }
-    
-    const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
-    console.log(`[Firebase Admin] Attempting to connect to database: ${dbId} in project: ${firebaseConfig.projectId}`);
-    
-    if (dbId === '(default)') {
-      adminDb = admin.firestore();
-    } else {
-      adminDb = admin.firestore(dbId);
-    }
-    
-    console.log("Firebase Admin SDK initialized successfully");
-  } else {
-    console.warn("Skipping Firebase Admin initialization: Missing service account credentials.");
-  }
-} catch (error) {
-  console.error("Firebase Admin initialization failed:", error);
-}
+// Firebase Admin SDK is now initialized in firebase-admin-service.ts
 
 let stripe: Stripe;
 
@@ -367,6 +338,29 @@ async function startServer() {
       const protocol = req.headers['x-forwarded-proto'] || 'http';
       const host = req.headers.host;
       const origin = req.headers.origin || `${protocol}://${host}`;
+
+      // Check availability before creating session
+      try {
+        const blockedDates = await getApartmentBlockedDates(apartmentId);
+        const requestedRange = eachDayOfInterval({
+          start: parseISO(checkIn),
+          end: parseISO(checkOut)
+        });
+        const requestedDates = requestedRange.map(d => format(d, 'yyyy-MM-dd'));
+        // CheckIn up to CheckOut-1 (CheckOut day can be the same as someone else's CheckIn)
+        const datesToVerify = requestedDates.slice(0, requestedDates.length - 1);
+        
+        const isUnavailable = datesToVerify.some(date => blockedDates.includes(date));
+        if (isUnavailable) {
+          console.warn(`[Checkout] Dates ${checkIn} - ${checkOut} are no longer available for ${apartmentId}`);
+          return res.status(400).json({ 
+            error: "Din păcate, datele selectate tocmai au fost rezervate. Te rugăm să încerci alte date." 
+          });
+        }
+      } catch (checkErr) {
+        console.error("Availability check failed during checkout:", checkErr);
+        // We continue in case of error to not block user, but ideally this works
+      }
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
