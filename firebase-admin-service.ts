@@ -31,6 +31,11 @@ try {
     }
     
     console.log("[Firebase Admin] Initialized successfully");
+    
+    // Quick probe to verify access
+    adminDb.collection('manual_blocks').limit(1).get()
+      .then((s: any) => console.log(`[Firebase Admin] Connection to manual_blocks verified. Found ${s.size} docs.`))
+      .catch((e: any) => console.error("[Firebase Admin] Connection verification failed:", e.message));
   } else {
     console.warn("[Firebase Admin] Missing service account credentials.");
   }

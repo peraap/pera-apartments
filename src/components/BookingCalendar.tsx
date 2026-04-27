@@ -78,8 +78,9 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         const response = await fetch(`/api/blocked-dates/${slug}`);
         if (response.ok) {
           const data = await response.json();
-          if (data.blockedDates && Array.isArray(data.blockedDates)) {
-            data.blockedDates.forEach((dateStr: string) => {
+          // The API returns a direct array of date strings
+          if (Array.isArray(data)) {
+            data.forEach((dateStr: string) => {
               dates.push(parseISO(dateStr));
             });
           }
