@@ -61,12 +61,10 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Maintenance Mode Middleware
+  // Maintenance Mode Middleware - CRITICAL: Must be at the very top
   app.use((req, res, next) => {
-    // Maintenance Mode Switch
-    const isMaintenance = process.env.MAINTENANCE_MODE === 'true' || true; 
+    const isMaintenance = true; // HARDCODED ON AS REQUESTED
     
-    // We allow internal health checks but block everything else for visitors
     if (isMaintenance && !req.path.startsWith('/api/health')) {
       if (req.path.startsWith('/api/')) {
         return res.status(503).json({ error: "Site-ul este în mentenanță." });
@@ -107,7 +105,7 @@ async function startServer() {
     next();
   });
 
-  // 1. CORS & JSON Parsing (Must be first)
+  // 1. CORS & JSON Parsing
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
