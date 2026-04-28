@@ -1,9 +1,15 @@
 import { google } from 'googleapis';
+import axios from 'axios';
+import icalParser from 'node-ical';
 import { getSheetsAuth } from './google-sheets-storage';
 
 export async function getCalendarClient() {
+  console.log("[Calendar] Initializing client...");
   const auth = await getSheetsAuth();
-  if (!auth) return null;
+  if (!auth) {
+    console.error("[Calendar] Auth failed to initialize.");
+    return null;
+  }
   return google.calendar({ version: 'v3', auth });
 }
 
@@ -133,12 +139,8 @@ export async function getBlockedDatesFromCalendar(slug: string): Promise<string[
   }
 }
 
-import axios from 'axios';
-import icalParser from 'node-ical';
-
 /**
  * Syncs events from an external iCal URL (Airbnb/Booking) into a Google Calendar.
- * Uses event summary and dates as a basic check to avoid duplicates.
  */
 export async function syncExternalIcalToGoogle(slug: string, url: string, sourceName: string) {
   console.log(`[Sync ${sourceName}] Starting sync for ${slug}...`);

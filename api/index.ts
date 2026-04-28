@@ -201,6 +201,7 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/sync-calendars", async (req, res) => {
   const targetSlug = req.query.slug as string;
+  const targetSource = req.query.source as string; // airbnb or booking
   
   try {
     const apartments = [
@@ -212,37 +213,49 @@ app.get("/api/sync-calendars", async (req, res) => {
       'peraconfort'
     ];
 
-    const results = [];
+    const results: any[] = [];
     const syncApartments = targetSlug ? [targetSlug] : apartments;
 
     console.log(`[Vercel Sync] Starting sync for: ${syncApartments.join(', ')}`);
 
     for (const slug of syncApartments) {
-      if (!apartments.includes(slug)) continue;
+      if (!apartments.includes(slug)) {
+        results.push({ slug, status: "ignored (invalid slug)" });
+        continue;
+      }
 
       const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
       const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
       const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
 
-      if (bookingUrl) {
+      if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
         console.log(`[Vercel Sync] Found Booking URL for ${slug}`);
-        await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-        results.push(`${slug} (Booking) - Success`);
+        try {
+          await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+          results.push({ slug, source: 'Booking', status: 'success' });
+        } catch (err: any) {
+          results.push({ slug, source: 'Booking', status: 'error', message: err.message });
+        }
       }
-      if (airbnbUrl) {
+      
+      if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
         console.log(`[Vercel Sync] Found Airbnb URL for ${slug}`);
-        await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-        results.push(`${slug} (Airbnb) - Success`);
+        try {
+          await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+          results.push({ slug, source: 'Airbnb', status: 'success' });
+        } catch (err: any) {
+          results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+        }
       }
     }
     
     res.json({ 
-      status: "Sync completed", 
+      status: "Sync process finished", 
       results,
       note: targetSlug ? "Individual sync" : "Full sync attempted"
     });
   } catch (error: any) {
-    console.error(`[Vercel Sync] Error:`, error.message);
+    console.error(`[Vercel Sync] Critical Error:`, error.message);
     res.status(500).json({ 
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined

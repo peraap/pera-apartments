@@ -239,6 +239,7 @@ async function startServer() {
 
   app.get("/api/sync-calendars", async (req, res) => {
     const targetSlug = req.query.slug as string;
+    const targetSource = req.query.source as string;
     
     try {
       const apartments = [
@@ -250,27 +251,39 @@ async function startServer() {
         'peraconfort'
       ];
 
-      const results = [];
+      const results: any[] = [];
       const syncApartments = targetSlug ? [targetSlug] : apartments;
 
       console.log(`[Local Sync] Starting sync for: ${syncApartments.join(', ')}`);
 
       for (const slug of syncApartments) {
-        if (!apartments.includes(slug)) continue;
+        if (!apartments.includes(slug)) {
+          results.push({ slug, status: "ignored (invalid slug)" });
+          continue;
+        }
 
         const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
         const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
         const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
 
-        if (bookingUrl) {
+        if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
           console.log(`[Local Sync] Syncing Booking for ${slug}`);
-          await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-          results.push(`${slug} (Booking) - Success`);
+          try {
+            await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+            results.push({ slug, source: 'Booking', status: 'success' });
+          } catch (err: any) {
+            results.push({ slug, source: 'Booking', status: 'error', message: err.message });
+          }
         }
-        if (airbnbUrl) {
+        
+        if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
           console.log(`[Local Sync] Syncing Airbnb for ${slug}`);
-          await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-          results.push(`${slug} (Airbnb) - Success`);
+          try {
+            await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+            results.push({ slug, source: 'Airbnb', status: 'success' });
+          } catch (err: any) {
+            results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+          }
         }
       }
       
@@ -280,7 +293,7 @@ async function startServer() {
         note: targetSlug ? "Individual sync" : "Full sync"
       });
     } catch (error: any) {
-      console.error(`[Local Sync] Error:`, error.message);
+      console.error(`[Local Sync] Critical Error:`, error.message);
       res.status(500).json({ error: error.message });
     }
   });

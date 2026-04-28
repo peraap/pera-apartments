@@ -10,15 +10,34 @@ const SCOPES = [
 
 export async function getSheetsAuth() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
 
-  if (!email || !privateKey) return null;
+  if (!email || !privateKey) {
+    console.error("[Auth] Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY");
+    return null;
+  }
 
-  return new google.auth.JWT({
-    email,
-    key: privateKey,
-    scopes: SCOPES,
-  });
+  // Handle various formats of private key
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  
+  // If it still has literal newlines or escaped quotes, clean them up
+  privateKey = privateKey.trim();
+  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+    privateKey = privateKey.substring(1, privateKey.length - 1);
+  }
+
+  try {
+    return new google.auth.JWT({
+      email,
+      key: privateKey,
+      scopes: SCOPES,
+    });
+  } catch (err: any) {
+    console.error("[Auth] JWT Initialization failed:", err.message);
+    return null;
+  }
 }
 
 export async function getSheetsClient() {
