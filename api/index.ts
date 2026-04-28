@@ -193,6 +193,40 @@ const handleIcalExportInternal = async (req: any, res: any) => {
         }
       });
 
+      // ADDED: Fetch and include events from Google Calendar in the iCal export
+      try {
+        const authClient = getVercelGoogleAuth();
+        const gCalId = getVercelCalendarId(slug);
+        if (authClient && gCalId && gCalId !== 'primary') {
+          const googleCal = google.calendar({ version: 'v3', auth: authClient });
+          const gRes = await googleCal.events.list({
+            calendarId: gCalId,
+            timeMin: new Date().toISOString(),
+            singleEvents: true,
+            maxResults: 50
+          });
+
+          (gRes.data.items || []).forEach((gEvent: any) => {
+            const start = gEvent.start?.date || gEvent.start?.dateTime;
+            const end = gEvent.end?.date || gEvent.end?.dateTime;
+            
+            if (start && end) {
+              hasEvents = true;
+              calendar.createEvent({
+                id: `google-${gEvent.id}`,
+                start: new Date(start),
+                end: new Date(end),
+                summary: gEvent.summary || 'Rezervare / Blocat',
+                description: 'Sincronizat din Google Calendar.',
+                busystatus: ICalEventBusyStatus.BUSY
+              });
+            }
+          });
+        }
+      } catch (gErr: any) {
+        console.error(`[iCal Export] Could not fetch Google events for export: ${gErr.message}`);
+      }
+
       if (!hasEvents) {
         const startDate = new Date();
         startDate.setHours(0, 0, 0, 0);

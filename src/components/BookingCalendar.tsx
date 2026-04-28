@@ -257,38 +257,52 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-neutral-100 p-4 sm:px-8 sm:py-6 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-neutral-900 rounded-xl flex items-center justify-center shrink-0">
-          <CalendarIcon className="text-white" size={20} />
+    <div className="bg-white rounded-[2.5rem] border border-neutral-100 p-4 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-neutral-900 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-black/10">
+            <CalendarIcon className="text-white" size={22} />
+          </div>
+          <div>
+            <h3 className="text-xs sm:text-sm font-black uppercase tracking-[0.2em] text-neutral-900">Programare Sejur</h3>
+            <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mt-0.5">Disponibilitate în timp real</p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-[11px] sm:text-sm font-black uppercase tracking-widest text-neutral-900">Rezervă Direct</h3>
-          <p className="text-[9px] sm:text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">Cel mai bun preț garantat</p>
+        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-neutral-50 rounded-full border border-neutral-100">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Live Sync</span>
         </div>
       </div>
 
-      <div className="mb-6 flex justify-center">
+      <div className="mb-8 flex justify-center w-full">
         <DayPicker
           mode="range"
           selected={range}
           onSelect={setRange}
           disabled={isDateDisabled}
           numberOfMonths={1}
-          className="border-none font-sans !m-0"
+          className="border-none font-sans !m-0 w-full"
           classNames={{
-            month: "space-y-4",
-            selected: "rounded-full !bg-black !text-white",
-            range_start: "rounded-l-full !bg-black !text-white",
-            range_end: "rounded-r-full !bg-black !text-white",
-            range_middle: "!rounded-none !bg-neutral-100 !text-black",
-            today: "text-black font-black underline",
-            day: "h-9 w-9 sm:h-10 sm:w-10 p-0 text-[11px] sm:text-xs font-bold hover:bg-neutral-100 rounded-full transition-all flex items-center justify-center",
-            head_cell: "text-[10px] font-black uppercase tracking-wider text-neutral-400 pb-2 w-9 sm:w-10",
-            cell: "p-0",
-            nav: "flex items-center gap-1",
+            month: "space-y-6 w-full",
+            caption: "flex justify-center pt-1 relative items-center mb-4",
+            caption_label: "text-sm font-black uppercase tracking-[0.2em]",
+            nav: "flex items-center gap-2",
+            nav_button: "h-9 w-9 bg-neutral-50 hover:bg-neutral-100 rounded-xl flex items-center justify-center transition-colors border border-neutral-100",
+            nav_button_previous: "absolute left-1",
+            nav_button_next: "absolute right-1",
             table: "w-full border-collapse",
-            months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0"
+            head_row: "flex w-full mt-2",
+            head_cell: "text-neutral-400 font-black uppercase tracking-widest text-[9px] w-[14.28%] pb-4",
+            row: "flex w-full mt-1",
+            cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-[14.28%]",
+            day: "h-10 w-10 sm:h-12 sm:w-12 p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center mx-auto rounded-xl hover:bg-neutral-100",
+            day_range_start: "rounded-l-xl !bg-black !text-white",
+            day_range_end: "rounded-r-xl !bg-black !text-white",
+            day_range_middle: "!bg-neutral-100 !text-black !rounded-none",
+            day_selected: "!bg-black !text-white",
+            day_today: "text-neutral-900 underline decoration-2 underline-offset-4 font-black",
+            day_disabled: "text-neutral-200 line-through opacity-50 cursor-not-allowed",
+            day_outside: "hidden",
           }}
         />
       </div>
@@ -362,27 +376,27 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-3 mb-6 p-4 sm:p-5 bg-neutral-50 rounded-2xl border border-neutral-100"
+          className="p-5 bg-neutral-900 rounded-3xl text-white shadow-xl shadow-black/10 space-y-3 mb-6"
         >
-          <div className="flex justify-between items-center text-xs font-bold text-neutral-900 gap-2">
-            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Nopți</span>
-            <span className="text-right">{calculateNights()} nopți</span>
+          <div className="flex justify-between items-center text-xs font-bold gap-2">
+            <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Nopți</span>
+            <span className="text-right text-white">{calculateNights()} nopți</span>
           </div>
           <div className="flex justify-between items-center gap-2">
-            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Perioada</span>
-            <span className="text-[10px] sm:text-xs font-bold text-neutral-900 text-right truncate">
+            <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Perioada</span>
+            <span className="text-[10px] font-bold text-white text-right truncate">
               {format(range.from, 'dd MMM')} - {format(range.to, 'dd MMM yyyy')}
             </span>
           </div>
           {selectedOffer && offerConditionMet(selectedOffer) && (
-             <div className="flex justify-between items-center text-green-600 gap-2">
-                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest shrink-0">Ofertă Aplicată</span>
-                <span className="text-xs font-bold text-right">-{selectedOffer.discountValue}{selectedOffer.discountType === 'percentage' ? '%' : ' RON'}</span>
+             <div className="flex justify-between items-center text-green-400 gap-2 py-2 border-y border-neutral-800">
+                <span className="text-[9px] font-black uppercase tracking-widest shrink-0">Ofertă Aplicată</span>
+                <span className="text-xs font-bold text-right text-green-400">-{selectedOffer.discountValue}{selectedOffer.discountType === 'percentage' ? '%' : ' RON'}</span>
              </div>
           )}
-          <div className="flex justify-between items-center pt-4 border-t border-neutral-200 gap-2">
-            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Total</span>
-            <span className="text-base sm:text-lg font-display font-black text-neutral-900 text-right">
+          <div className="flex justify-between items-center pt-4 border-t border-neutral-800 gap-2">
+            <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 shrink-0">Total</span>
+            <span className="text-base sm:text-lg font-black text-white text-right">
               {calculateTotal()} RON
             </span>
           </div>
@@ -392,7 +406,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
       <button
         onClick={handleBooking}
         disabled={loading || checkingAvailability || !range?.from || !range?.to || (selectedOffer && !offerConditionMet(selectedOffer))}
-        className="w-full bg-black text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50"
+        className="w-full bg-black text-white py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] hover:bg-neutral-800 hover:scale-[1.01] transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50 active:scale-[0.98]"
       >
         {loading ? (
           <Loader2 className="animate-spin" size={18} />
