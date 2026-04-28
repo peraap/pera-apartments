@@ -327,12 +327,22 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
   
   const existingEvents = res.data.items || [];
   const existingKeys = new Set();
+  const existingDates = new Set(); // New: Track blocked dates to prevent source duplicates
+
   existingEvents.forEach((e: any) => {
     const uidMatch = e.description?.match(/UID iCal: (.+)/);
     if (uidMatch) existingKeys.add(uidMatch[1].trim());
+    
     const start = e.start?.date || (e.start?.dateTime ? e.start.dateTime.split('T')[0] : '');
     const end = e.end?.date || (e.end?.dateTime ? e.end.dateTime.split('T')[0] : '');
-    existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+    
+    if (start && end) {
+      existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+      // If it looks like a synced reservation, track the dates
+      if (e.summary?.toLowerCase().includes('rezervare') || e.description?.includes('Sincronizat')) {
+        existingDates.add(`${start}-${end}`);
+      }
+    }
   });
 
   let added = 0;
@@ -345,11 +355,20 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
 
       const startDateStr = start.toISOString().split('T')[0];
       const endDateStr = end.toISOString().split('T')[0];
-      const summary = `${sourceName}: Rezervare`;
+      
+      // Try to detect source from summary if it's an Airbnb sync containing Booking info
+      let effectiveSource = sourceName;
+      const icalSummary = (ev.summary || '').toString();
+      if (sourceName === 'Airbnb' && (icalSummary.toLowerCase().includes('booking') || icalSummary.toLowerCase().includes('expedia'))) {
+        effectiveSource = 'External (Sync)';
+      }
+
+      const summary = `${effectiveSource}: Rezervare`;
       const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
+      const dateKey = `${startDateStr}-${endDateStr}`;
       const uid = (ev.uid || `${eventKey}-${k}`).toString().trim();
 
-      if (!existingKeys.has(uid) && !existingKeys.has(eventKey)) {
+      if (!existingKeys.has(uid) && !existingKeys.has(eventKey) && !existingDates.has(dateKey)) {
         await calendar.events.insert({
           calendarId,
           requestBody: {
@@ -358,7 +377,7 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
             start: { date: startDateStr },
             end: { date: endDateStr },
             transparency: 'opaque',
-            colorId: sourceName === 'Airbnb' ? '11' : '1',
+            colorId: effectiveSource === 'Airbnb' ? '11' : (effectiveSource.includes('External') ? '8' : '1'),
           }
         });
         existingKeys.add(uid);
@@ -446,7 +465,7 @@ app.get("/api/sync-calendars", async (req, res) => {
   }
 });
 
-app.get("/api/apartments/:slug/blocked-dates", async (req, res) => {
+app.get("/api/blocked-dates/:slug", async (req, res) => {
   const slug = req.params.slug;
   // Use same robust normalization
   const baseName = slug.toLowerCase().replace('apartament-', '').replace(/-/g, '_').toUpperCase();
@@ -490,7 +509,7 @@ app.get("/api/apartments/:slug/blocked-dates", async (req, res) => {
       const auth = getVercelGoogleAuth();
       if (!auth) return [];
       const calendarId = getVercelCalendarId(slug);
-      if (calendarId === 'primary') return [];
+      if (!calendarId || calendarId === 'primary') return [];
 
       const calendar = google.calendar({ version: 'v3', auth });
       const today = new Date();
@@ -564,10 +583,15 @@ app.get("/api/apartments/:slug/blocked-dates", async (req, res) => {
     ]);
 
     const allDates = new Set([...bookingDates, ...airbnbDates, ...googleDates, ...manualDates]);
-    res.json(Array.from(allDates));
+    res.json({ blockedDates: Array.from(allDates) });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+app.get("/api/apartments/:slug/blocked-dates", async (req, res) => {
+  // Alias for backward compatibility or future use
+  res.redirect(301, `/api/blocked-dates/${req.params.slug}`);
 });
 
 // Improved route matching

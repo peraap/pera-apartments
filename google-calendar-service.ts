@@ -179,6 +179,7 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
     
     // Create a set of "duplicate detectors"
     const existingKeys = new Set();
+    const existingDates = new Set();
     existingEvents.forEach(e => {
       const uidMatch = e.description?.match(/UID iCal: (.+)/);
       if (uidMatch) {
@@ -186,7 +187,13 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
       }
       const start = e.start?.date || (e.start?.dateTime ? e.start.dateTime.split('T')[0] : '');
       const end = e.end?.date || (e.end?.dateTime ? e.end.dateTime.split('T')[0] : '');
-      existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+      
+      if (start && end) {
+        existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+        if (e.summary?.toLowerCase().includes('rezervare') || e.description?.includes('Sincronizat')) {
+          existingDates.add(`${start}-${end}`);
+        }
+      }
     });
 
     console.log(`[Sync ${sourceName}] Found ${Object.keys(data).length} items in iCal. Google has ${existingEvents.length} upcoming events.`);
@@ -202,11 +209,19 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
 
         const startDateStr = start.toISOString().split('T')[0];
         const endDateStr = end.toISOString().split('T')[0];
-        const summary = `${sourceName}: Rezervare`;
+        
+        let effectiveSource = sourceName;
+        const icalSummary = (ev.summary || '').toString();
+        if (sourceName === 'Airbnb' && (icalSummary.toLowerCase().includes('booking') || icalSummary.toLowerCase().includes('expedia'))) {
+          effectiveSource = 'External (Sync)';
+        }
+
+        const summary = `${effectiveSource}: Rezervare`;
         const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
+        const dateKey = `${startDateStr}-${endDateStr}`;
         const uid = (ev.uid || `${eventKey}-${k}`).toString().trim();
 
-        if (!existingKeys.has(uid) && !existingKeys.has(eventKey)) {
+        if (!existingKeys.has(uid) && !existingKeys.has(eventKey) && !existingDates.has(dateKey)) {
           console.log(`[Sync ${sourceName}] ➕ Adding: ${startDateStr} - ${endDateStr}`);
           
           await calendar.events.insert({
@@ -218,7 +233,7 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
               end: { date: endDateStr },
               transparency: 'opaque',
               status: 'confirmed',
-              colorId: sourceName === 'Airbnb' ? '11' : '1', 
+              colorId: effectiveSource === 'Airbnb' ? '11' : (effectiveSource.includes('External') ? '8' : '1'), 
             }
           });
           
