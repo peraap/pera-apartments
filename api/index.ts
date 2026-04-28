@@ -73,18 +73,29 @@ try {
   console.error("Firebase Admin initialization failed in Vercel API:", error);
 }
 
-const handleIcalExport = async (req: any, res: any) => {
+const handleIcalExportInternal = async (req: any, res: any) => {
   try {
-    let slug = req.params.slug || req.params[0];
-    if (slug && slug.startsWith('/')) slug = slug.substring(1);
+    let slug = req.params.slug || req.params[0] || req.path.split('/').pop();
     
+    // Handle Vercel rewrite oddities
+    if (slug === 'ical' || slug === 'export-ical' || !slug) {
+       const parts = req.path.split('/');
+       slug = parts[parts.length - 1];
+    }
+
     if (slug && slug.toLowerCase().endsWith('.ics')) {
       slug = slug.substring(0, slug.length - 4);
     }
     
-    if (!slug) {
-      return res.status(400).send("Slug required");
+    if (!slug || slug === 'ical' || slug === 'export-ical') {
+       slug = req.query.slug as string;
     }
+
+    if (!slug) {
+      return res.status(400).send("Slug required. Use /api/ical/room-name.ics");
+    }
+
+    console.log(`[iCal Vercel] Exporting for slug: ${slug}`);
 
     const calendar = ical({ 
       name: `Pera Apartments - ${slug}`,
@@ -117,10 +128,10 @@ const handleIcalExport = async (req: any, res: any) => {
         const searchName = searchSlug.replace(/-/g, ' ');
 
         const slugAliases: Record<string, string[]> = {
-          'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
-          'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
-          'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe'],
-          'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard'],
+          'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room', 'king-room', 'premium-king'],
+          'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double', 'deluxe-double'],
+          'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe', 'family-deluxe'],
+          'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard', 'family-standard'],
           'peraduo': ['5', 'pera-duo', 'peraduo'],
           'peraconfort': ['6', 'pera-confort', 'peraconfort']
         };
@@ -128,8 +139,9 @@ const handleIcalExport = async (req: any, res: any) => {
         const aliases = slugAliases[searchSlug] || [];
         const isDirectIdMatch = aptId === searchSlug || aliases.includes(aptId);
         const isNameMatch = aptName.includes(searchName) || aliases.some(alias => aptName.includes(alias));
+        const isShortNameMatch = booking.shortName && booking.shortName.toLowerCase() === searchSlug;
         
-        if ((isDirectIdMatch || isNameMatch) && booking.checkIn && booking.checkOut) {
+        if ((isDirectIdMatch || isNameMatch || isShortNameMatch) && booking.checkIn && booking.checkOut) {
           hasEvents = true;
           calendar.createEvent({
             id: doc.id,
@@ -144,14 +156,19 @@ const handleIcalExport = async (req: any, res: any) => {
       });
 
       if (!hasEvents) {
+        const startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 1);
+
         calendar.createEvent({
-          id: `placeholder-${slug}`,
-          start: new Date(),
-          end: new Date(),
+          id: `sync-active-${slug}`,
+          start: startDate,
+          end: endDate,
           allDay: true,
-          summary: 'Sync Active',
-          description: 'Pera Apartments Calendar Sync Connection',
-          busystatus: ICalEventBusyStatus.FREE
+          summary: 'Calendar Sync Active (Pera Apartments)',
+          description: 'Conexiune activă pentru sincronizarea calendarului. Nu există rezervări momentan.',
+          busystatus: ICalEventBusyStatus.BUSY
         });
       }
     }
@@ -159,6 +176,7 @@ const handleIcalExport = async (req: any, res: any) => {
     const output = calendar.toString();
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.status(200).send(output);
   } catch (error: any) {
     console.error("[iCal Export Vercel] Error:", error);
@@ -170,20 +188,19 @@ app.get("/api/health", (req, res) => {
   res.json({ 
     status: "ok", 
     vercel: true,
+    maintenance: process.env.MAINTENANCE_MODE === 'true',
     stripeKey: !!process.env.STRIPE_SECRET_KEY,
     gmailUser: !!process.env.GMAIL_USER,
     gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-    webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-    dbInitialized: !!db,
     adminDbInitialized: !!adminDb,
-    transporterInitialized: !!transporter
+    dbInitialized: !!db
   });
 });
 
-app.get("/api/ical/:slug", handleIcalExport);
-app.get("/api/ical/*", handleIcalExport);
-app.get("/api/export-ical/:slug", handleIcalExport);
-app.get("/api/export-ical/*", handleIcalExport);
+// Improved route matching
+app.get("/api/ical*", handleIcalExportInternal);
+app.get("/api/export-ical*", handleIcalExportInternal);
+app.get("/export-ical*", handleIcalExportInternal);
 
 let stripe: Stripe;
 

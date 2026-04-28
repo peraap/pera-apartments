@@ -195,14 +195,19 @@ async function startServer() {
 
         // Add a placeholder event if empty to pass validation
         if (!hasEvents) {
+          const startDate = new Date();
+          startDate.setHours(0, 0, 0, 0);
+          const endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 1);
+
           calendar.createEvent({
-            id: `placeholder-${slug}`,
-            start: new Date(),
-            end: new Date(),
+            id: `sync-active-${slug}`,
+            start: startDate,
+            end: endDate,
             allDay: true,
-            summary: 'Sync Active',
-            description: 'Pera Apartments Calendar Sync Connection',
-            busystatus: ICalEventBusyStatus.FREE
+            summary: 'Calendar Sync Active (Pera Apartments)',
+            description: 'Conexiune activă pentru sincronizarea calendarului. Nu există rezervări momentan.',
+            busystatus: ICalEventBusyStatus.BUSY
           });
         }
       }
@@ -227,6 +232,11 @@ async function startServer() {
     }
   };
 
+  // Improved route matching
+  app.get("/api/ical*", handleIcalExport);
+  app.get("/api/export-ical*", handleIcalExport);
+  app.get("/export-ical*", handleIcalExport);
+
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
@@ -239,13 +249,6 @@ async function startServer() {
       webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
     });
   });
-
-  app.get("/api/ical/:slug", handleIcalExport);
-  app.get("/api/ical/*", handleIcalExport);
-  app.get("/api/export-ical/:slug", handleIcalExport);
-  app.get("/api/export-ical/*", handleIcalExport);
-  app.get("/export-ical/:slug", handleIcalExport);
-  app.get("/export-ical/*", handleIcalExport);
 
   // 1. CORS & JSON Parsing (Moved up to ensure all routes benefit)
   app.use(cors({
