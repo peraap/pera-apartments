@@ -3,7 +3,9 @@ import Stripe from "stripe";
 import cors from "cors";
 import nodemailer from "nodemailer";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, query, where, getDocs } from "firebase/firestore";
+import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
+import admin from "firebase-admin";
 
 const firebaseConfig = {
   "projectId": "gen-lang-client-0517351691",
@@ -18,19 +20,21 @@ const firebaseConfig = {
 
 const app = express();
 
-app.get("/api/health", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    vercel: true,
-    stripeKey: !!process.env.STRIPE_SECRET_KEY,
-    gmailUser: !!process.env.GMAIL_USER,
-    gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-    webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-    dbInitialized: !!db,
-    transporterInitialized: !!transporter
-  });
+// Maintenance Mode Middleware for Vercel
+app.use((req, res, next) => {
+  const isMaintenance = process.env.MAINTENANCE_MODE === 'true'; 
+  const isPublicApi = req.path.startsWith('/api/health') || 
+                      req.path.includes('export-ical') ||
+                      req.path.includes('api/ical') ||
+                      req.path.includes('.ics');
+  
+  if (isMaintenance && !isPublicApi) {
+    return res.status(503).json({ error: "Sistemul este în mentenanță." });
+  }
+  next();
 });
 
+// Initialize Firebase Client SDK
 let firebaseApp: any;
 let db: any;
 
@@ -40,6 +44,146 @@ try {
 } catch (error) {
   console.error("Firebase initialization failed:", error);
 }
+
+// Initialize Firebase Admin SDK for Vercel
+let adminDb: any;
+try {
+  if (admin.apps.length === 0) {
+    const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+    if (serviceAccountEmail && privateKey) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: firebaseConfig.projectId,
+          clientEmail: serviceAccountEmail,
+          privateKey: privateKey,
+        })
+      });
+      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      if (dbId === '(default)') {
+        adminDb = admin.firestore();
+      } else {
+        // @ts-ignore
+        adminDb = admin.firestore(dbId);
+      }
+    }
+  }
+} catch (error) {
+  console.error("Firebase Admin initialization failed in Vercel API:", error);
+}
+
+const handleIcalExport = async (req: any, res: any) => {
+  try {
+    let slug = req.params.slug || req.params[0];
+    if (slug && slug.startsWith('/')) slug = slug.substring(1);
+    
+    if (slug && slug.toLowerCase().endsWith('.ics')) {
+      slug = slug.substring(0, slug.length - 4);
+    }
+    
+    if (!slug) {
+      return res.status(400).send("Slug required");
+    }
+
+    const calendar = ical({ 
+      name: `Pera Apartments - ${slug}`,
+      prodId: { company: 'Pera Apartments', product: 'Booking Sync', language: 'RO' },
+      method: ICalCalendarMethod.PUBLISH
+    });
+
+    if (adminDb || db) {
+      let querySnapshot;
+      try {
+        if (adminDb) {
+          querySnapshot = await adminDb.collection('bookings')
+            .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
+            .get();
+        } else {
+          const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
+          querySnapshot = await getDocs(q);
+        }
+      } catch (fetchError: any) {
+        console.error("[iCal Export Vercel] Fetch failed:", fetchError.message);
+        querySnapshot = { forEach: () => {} };
+      }
+      
+      let hasEvents = false;
+      querySnapshot.forEach((doc: any) => {
+        const booking = doc.data();
+        const aptName = (booking.apartmentName || '').toLowerCase();
+        const aptId = (booking.apartmentId || '').toLowerCase();
+        const searchSlug = slug.toLowerCase();
+        const searchName = searchSlug.replace(/-/g, ' ');
+
+        const slugAliases: Record<string, string[]> = {
+          'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
+          'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
+          'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe'],
+          'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard'],
+          'peraduo': ['5', 'pera-duo', 'peraduo'],
+          'peraconfort': ['6', 'pera-confort', 'peraconfort']
+        };
+
+        const aliases = slugAliases[searchSlug] || [];
+        const isDirectIdMatch = aptId === searchSlug || aliases.includes(aptId);
+        const isNameMatch = aptName.includes(searchName) || aliases.some(alias => aptName.includes(alias));
+        
+        if ((isDirectIdMatch || isNameMatch) && booking.checkIn && booking.checkOut) {
+          hasEvents = true;
+          calendar.createEvent({
+            id: doc.id,
+            start: new Date(booking.checkIn),
+            end: new Date(booking.checkOut),
+            allDay: true,
+            summary: 'Rezervare Site (Pera Apartments)',
+            description: `Oaspete: ${booking.guestName}`,
+            busystatus: ICalEventBusyStatus.BUSY
+          });
+        }
+      });
+
+      if (!hasEvents) {
+        calendar.createEvent({
+          id: `placeholder-${slug}`,
+          start: new Date(),
+          end: new Date(),
+          allDay: true,
+          summary: 'Sync Active',
+          description: 'Pera Apartments Calendar Sync Connection',
+          busystatus: ICalEventBusyStatus.FREE
+        });
+      }
+    }
+
+    const output = calendar.toString();
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
+    return res.status(200).send(output);
+  } catch (error: any) {
+    console.error("[iCal Export Vercel] Error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    vercel: true,
+    stripeKey: !!process.env.STRIPE_SECRET_KEY,
+    gmailUser: !!process.env.GMAIL_USER,
+    gmailPass: !!process.env.GMAIL_APP_PASSWORD,
+    webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+    dbInitialized: !!db,
+    adminDbInitialized: !!adminDb,
+    transporterInitialized: !!transporter
+  });
+});
+
+app.get("/api/ical/:slug", handleIcalExport);
+app.get("/api/ical/*", handleIcalExport);
+app.get("/api/export-ical/:slug", handleIcalExport);
+app.get("/api/export-ical/*", handleIcalExport);
 
 let stripe: Stripe;
 

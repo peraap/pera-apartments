@@ -63,11 +63,12 @@ async function startServer() {
 
   // Maintenance Mode Middleware - CRITICAL: Must be at the very top
   app.use((req, res, next) => {
-    // Enable by default as requested, but allow override via env
-    const isMaintenance = process.env.MAINTENANCE_MODE !== 'false'; 
+    // Default to false unless explicitly set to true
+    const isMaintenance = process.env.MAINTENANCE_MODE === 'true'; 
     const isPublicApi = req.path.startsWith('/api/health') || 
                         req.path.includes('export-ical') ||
-                        req.path.includes('api/ical');
+                        req.path.includes('api/ical') ||
+                        req.path.includes('.ics');
     
     if (isMaintenance && !isPublicApi) {
       if (req.path.startsWith('/api/')) {
@@ -240,11 +241,11 @@ async function startServer() {
   });
 
   app.get("/api/ical/:slug", handleIcalExport);
-  app.get("/api/ical*", handleIcalExport);
+  app.get("/api/ical/*", handleIcalExport);
   app.get("/api/export-ical/:slug", handleIcalExport);
-  app.get("/api/export-ical*", handleIcalExport);
+  app.get("/api/export-ical/*", handleIcalExport);
   app.get("/export-ical/:slug", handleIcalExport);
-  app.get("/export-ical*", handleIcalExport);
+  app.get("/export-ical/*", handleIcalExport);
 
   // 1. CORS & JSON Parsing (Moved up to ensure all routes benefit)
   app.use(cors({
