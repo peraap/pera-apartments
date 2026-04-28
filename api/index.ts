@@ -429,19 +429,22 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
       const icalSummary = (ev.summary || '').toString().toLowerCase();
       const icalDescription = (ev.description || '').toString().toLowerCase();
       
-      // If we are syncing Airbnb, but the event summary contains "booking.com" or "reserved" 
-      // without airbnb branding, it's almost certainly an imported event from Booking.com
+      // If we are syncing Airbnb, but it contains Booking.com or other external reservations
       if (sourceName === 'Airbnb') {
-        const isBookingSearch = icalSummary.includes('booking') || icalDescription.includes('booking');
+        // Pattern 1: Explicit labels
+        const isBookingSearch = icalSummary.includes('booking.com') || icalDescription.includes('booking.com') || icalSummary.includes('booking-') || icalSummary.startsWith('booking');
         const isExpediaSearch = icalSummary.includes('expedia') || icalDescription.includes('expedia');
-        const isGenericReserved = icalSummary.includes('reserved') && !icalSummary.includes('airbnb');
+        
+        // Pattern 2: Airbnb often shows imported events simply as "Reserved" (summary) with no "Airbnb" in it
+        // real Airbnb events usually have "Airbnb (Not available)" or "Reservation (Person Name)"
+        const isGenericReserved = (icalSummary === 'reserved' || icalSummary === 'unavailable') && !icalDescription.includes('airbnb');
 
         if (isBookingSearch) {
           effectiveSource = 'Booking.com';
         } else if (isExpediaSearch) {
           effectiveSource = 'Expedia';
         } else if (isGenericReserved) {
-          effectiveSource = 'External (Sync)';
+          effectiveSource = 'Sync (Ext)';
         }
       }
 

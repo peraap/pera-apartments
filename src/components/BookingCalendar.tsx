@@ -281,28 +281,27 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
           onSelect={setRange}
           disabled={isDateDisabled}
           numberOfMonths={1}
-          className="border-none font-sans !m-0 w-full"
+          className="w-full"
           classNames={{
-            month: "space-y-6 w-full",
-            caption: "flex justify-center pt-1 relative items-center mb-4",
-            caption_label: "text-sm font-black uppercase tracking-[0.2em]",
+            month: "w-full space-y-6",
+            month_caption: "flex justify-center pt-1 relative items-center mb-8",
+            caption_label: "text-sm font-black uppercase tracking-[0.3em] text-neutral-900",
             nav: "flex items-center gap-2",
-            nav_button: "h-9 w-9 bg-neutral-50 hover:bg-neutral-100 rounded-xl flex items-center justify-center transition-colors border border-neutral-100",
-            nav_button_previous: "absolute left-1",
-            nav_button_next: "absolute right-1",
-            table: "w-full border-collapse",
-            head_row: "flex w-full mt-2",
-            head_cell: "text-neutral-400 font-black uppercase tracking-widest text-[9px] w-[14.28%] pb-4",
-            row: "flex w-full mt-1",
-            cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-[14.28%]",
-            day: "h-10 w-10 sm:h-12 sm:w-12 p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center mx-auto rounded-xl hover:bg-neutral-100",
-            day_range_start: "rounded-l-xl !bg-black !text-white",
-            day_range_end: "rounded-r-xl !bg-black !text-white",
-            day_range_middle: "!bg-neutral-100 !text-black !rounded-none",
-            day_selected: "!bg-black !text-white",
-            day_today: "text-neutral-900 underline decoration-2 underline-offset-4 font-black",
-            day_disabled: "text-neutral-200 line-through opacity-50 cursor-not-allowed",
-            day_outside: "hidden",
+            button_previous: "absolute left-0 h-10 w-10 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 z-10 hover:scale-105 active:scale-95",
+            button_next: "absolute right-0 h-10 w-10 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 z-10 hover:scale-105 active:scale-95",
+            month_grid: "w-full border-collapse",
+            weekdays: "flex w-full mb-4",
+            weekday: "text-neutral-400 font-black uppercase tracking-widest text-[10px] flex-1 text-center",
+            week: "flex w-full mt-0.5",
+            day: "relative flex-1 aspect-square p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center rounded-xl hover:bg-neutral-50 cursor-pointer overflow-hidden m-0.5",
+            selected: "!bg-black !text-white rounded-xl shadow-lg shadow-black/10",
+            range_start: "!bg-black !text-white rounded-xl",
+            range_end: "!bg-black !text-white rounded-xl",
+            range_middle: "!bg-black/5 !text-black !rounded-none !m-0",
+            today: "text-black border-2 border-neutral-900/10 font-black",
+            disabled: "text-neutral-200 line-through opacity-40 cursor-not-allowed hover:bg-transparent",
+            outside: "invisible",
+            day_button: "w-full h-full flex items-center justify-center outline-none",
           }}
         />
       </div>
