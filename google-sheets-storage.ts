@@ -110,3 +110,42 @@ export async function logLoginToSheet(userData: any) {
     console.error("Error logging login to Google Sheet:", error);
   }
 }
+
+export async function logLeadToSheet(leadData: any) {
+  const sheets = await getSheetsClient();
+  if (!sheets) return;
+
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const range = 'Leads!A:A';
+
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+    const rows = response.data.values || [];
+    const nextId = rows.length;
+
+    const values = [
+      [
+        nextId,
+        new Date().toLocaleString('ro-RO'),
+        leadData.email,
+        leadData.name || 'Nespecificat',
+        leadData.type || 'Discount 20%'
+      ]
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'Leads!A:E',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values,
+      },
+    });
+    console.log(`Logged lead #${nextId} to Google Sheet`);
+  } catch (error) {
+    console.error("Error logging lead to Google Sheet:", error);
+  }
+}

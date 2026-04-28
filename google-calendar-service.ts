@@ -94,6 +94,7 @@ export async function getBlockedDatesFromCalendar(slug: string): Promise<string[
     });
 
     const events = res.data.items || [];
+    console.log(`[Google Calendar Sync] Fetched ${events.length} events for ${slug} from ${calendarId}`);
     const blockedDates: Set<string> = new Set();
 
     events.forEach(event => {

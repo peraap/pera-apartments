@@ -9,7 +9,7 @@ import nodemailer from "nodemailer";
 import { initializeApp } from "firebase/app";
 import { getFirestore, query, where, getDocs, collection, addDoc } from "firebase/firestore";
 import { firebaseConfig } from "./src/firebase-config";
-import { logBookingToSheet, logLoginToSheet, getSheetsAuth } from "./google-sheets-storage";
+import { logBookingToSheet, logLoginToSheet, getSheetsAuth, logLeadToSheet } from "./google-sheets-storage";
 import { addBookingToCalendar } from "./google-calendar-service";
 import { getApartmentBlockedDates } from "./ical-sync";
 import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
@@ -63,9 +63,12 @@ async function startServer() {
 
   // Maintenance Mode Middleware - CRITICAL: Must be at the very top
   app.use((req, res, next) => {
-    const isMaintenance = true; // HARDCODED ON AS REQUESTED
+    // Enable by default as requested, but allow override via env
+    const isMaintenance = process.env.MAINTENANCE_MODE !== 'false'; 
+    const isPublicApi = req.path.startsWith('/api/health') || 
+                        req.path.includes('export-ical');
     
-    if (isMaintenance && !req.path.startsWith('/api/health')) {
+    if (isMaintenance && !isPublicApi) {
       if (req.path.startsWith('/api/')) {
         return res.status(503).json({ error: "Site-ul este în mentenanță." });
       }
@@ -104,6 +107,119 @@ async function startServer() {
     }
     next();
   });
+
+  // 1. Static Validation & Higher Priority Public Routes
+  const handleIcalExport = async (req: any, res: any) => {
+    try {
+      let slug = req.params.slug || req.params[0];
+      console.log(`[iCal Export Request] Raw slug from params: ${slug}`);
+      
+      if (slug && slug.toLowerCase().endsWith('.ics')) {
+        slug = slug.substring(0, slug.length - 4);
+      }
+      
+      if (!slug) {
+        return res.status(400).send("Slug required");
+      }
+
+      console.log(`[iCal Export] Generating for: ${slug}`);
+
+      const calendar = ical({ 
+        name: `Pera Apartments - ${slug}`,
+        prodId: { company: 'Pera Apartments', product: 'Booking Sync', language: 'RO' },
+        method: ICalCalendarMethod.PUBLISH
+      });
+
+      if (adminDb || db) {
+        let querySnapshot;
+        try {
+          if (adminDb) {
+            console.log("[iCal Export] fetching bookings using Admin SDK...");
+            querySnapshot = await adminDb.collection('bookings')
+              .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
+              .get();
+          } else {
+            console.log("[iCal Export] Using Client SDK for Firestore access");
+            const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
+            querySnapshot = await getDocs(q);
+          }
+        } catch (fetchError: any) {
+          console.error("[iCal Export] Fetch failed:", fetchError.message);
+          // Create a mock snapshot that does nothing when iterated
+          querySnapshot = { forEach: () => {} };
+        }
+        
+        let hasEvents = false;
+        querySnapshot.forEach((doc: any) => {
+          const booking = doc.data();
+          const matchesSlug = booking.apartmentId === slug || 
+                             (booking.apartmentName && booking.apartmentName.toLowerCase().includes(slug.replace(/-/g, ' '))) ||
+                             (slug === 'peraconfort' && booking.apartmentId === 'pera-confort') ||
+                             (slug === 'peraduo' && booking.apartmentId === 'pera-duo') ||
+                             (booking.shortName && booking.shortName.toLowerCase() === slug.toLowerCase());
+          
+          if (matchesSlug && booking.checkIn && booking.checkOut) {
+            hasEvents = true;
+            calendar.createEvent({
+              id: doc.id,
+              start: new Date(booking.checkIn),
+              end: new Date(booking.checkOut),
+              allDay: true,
+              summary: 'Rezervare Site (Pera Apartments)',
+              description: `Oaspete: ${booking.guestName}`,
+              location: 'Pera Apartments, Cristian, Brasov',
+              url: 'https://peraapartments.ro',
+              busystatus: ICalEventBusyStatus.BUSY
+            });
+          }
+        });
+
+        // Add a placeholder event if empty to pass validation
+        if (!hasEvents) {
+          calendar.createEvent({
+            id: `placeholder-${slug}`,
+            start: new Date(),
+            end: new Date(),
+            allDay: true,
+            summary: 'Sync Active',
+            description: 'Pera Apartments Calendar Sync Connection',
+            busystatus: ICalEventBusyStatus.FREE
+          });
+        }
+      }
+
+      const output = calendar.toString();
+      
+      // Strict headers for iCal validators
+      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      
+      return res.status(200).send(output);
+    } catch (error: any) {
+      console.error("[iCal Export] Error:", error);
+      return res.status(500).json({ 
+        error: "Internal Server Error", 
+        message: error.message,
+        stack: error.stack,
+        slug: req.params.slug || req.params[0]
+      });
+    }
+  };
+
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      env: process.env.NODE_ENV,
+      dbInitialized: !!db
+    });
+  });
+
+  app.get("/api/export-ical/:slug", handleIcalExport);
+  app.get("/api/export-ical*", handleIcalExport);
+  app.get("/export-ical/:slug", handleIcalExport);
+  app.get("/export-ical*", handleIcalExport);
 
   // 1. CORS & JSON Parsing
   app.use(cors({
@@ -216,107 +332,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  // 2. API ROUTES (Defined directly on app for maximum priority)
-  const handleIcalExport = async (req: any, res: any) => {
-    try {
-      let slug = req.params[0] || req.params.slug;
-      if (slug && slug.toLowerCase().endsWith('.ics')) {
-        slug = slug.substring(0, slug.length - 4);
-      }
-      
-      if (!slug) {
-        return res.status(400).send("Slug required");
-      }
-
-      console.log(`[iCal Export] Generating for: ${slug}`);
-
-      const calendar = ical({ 
-        name: `Pera Apartments - ${slug}`,
-        prodId: { company: 'Pera Apartments', product: 'Booking Sync', language: 'RO' },
-        method: ICalCalendarMethod.PUBLISH
-      });
-
-      if (adminDb || db) {
-        let querySnapshot;
-        try {
-          if (adminDb) {
-            console.log("[iCal Export] fetching bookings using Admin SDK...");
-            querySnapshot = await adminDb.collection('bookings')
-              .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
-              .get();
-          } else {
-            console.log("[iCal Export] Using Client SDK for Firestore access");
-            const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
-            querySnapshot = await getDocs(q);
-          }
-        } catch (fetchError: any) {
-          console.error("[iCal Export] Fetch failed:", fetchError.message);
-          // Create a mock snapshot that does nothing when iterated
-          querySnapshot = { forEach: () => {} };
-        }
-        
-        let hasEvents = false;
-        querySnapshot.forEach((doc: any) => {
-          const booking = doc.data();
-          const matchesSlug = booking.apartmentId === slug || 
-                             (booking.apartmentName && booking.apartmentName.toLowerCase().includes(slug.replace(/-/g, ' '))) ||
-                             (slug === 'peraconfort' && booking.apartmentId === 'pera-confort') ||
-                             (slug === 'peraduo' && booking.apartmentId === 'pera-duo') ||
-                             (booking.shortName && booking.shortName.toLowerCase() === slug.toLowerCase());
-          
-          if (matchesSlug && booking.checkIn && booking.checkOut) {
-            hasEvents = true;
-            calendar.createEvent({
-              id: doc.id,
-              start: new Date(booking.checkIn),
-              end: new Date(booking.checkOut),
-              allDay: true,
-              summary: 'Rezervare Site (Pera Apartments)',
-              description: `Oaspete: ${booking.guestName}`,
-              location: 'Pera Apartments, Cristian, Brasov',
-              url: 'https://peraapartments.ro',
-              busystatus: ICalEventBusyStatus.BUSY
-            });
-          }
-        });
-
-        // Add a placeholder event if empty to pass validation
-        if (!hasEvents) {
-          calendar.createEvent({
-            id: `placeholder-${slug}`,
-            start: new Date(),
-            end: new Date(),
-            allDay: true,
-            summary: 'Sync Active',
-            description: 'Pera Apartments Calendar Sync Connection',
-            busystatus: ICalEventBusyStatus.FREE
-          });
-        }
-      }
-
-      const output = calendar.toString();
-      
-      // Strict headers for iCal validators
-      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      
-      return res.status(200).send(output);
-    } catch (error: any) {
-      console.error("[iCal Export] Error:", error);
-      return res.status(500).json({ 
-        error: "Internal Server Error", 
-        message: error.message,
-        stack: error.stack,
-        slug: req.params[0] || req.params.slug
-      });
-    }
-  };
-
-  app.get(/^\/api\/export-ical\/(.+)$/, handleIcalExport);
-  app.get("/api/export-ical/:slug", handleIcalExport);
-
   app.get("/api/blocked-dates/:slug", async (req, res) => {
     try {
       const { slug } = req.params;
@@ -336,6 +351,23 @@ async function startServer() {
       if (!process.env.GMAIL_APP_PASSWORD) {
         console.error("GMAIL_APP_PASSWORD is missing in environment variables!");
         return res.status(500).json({ error: "Configurația de email lipsește." });
+      }
+
+      // Log Lead to Firestore and Google Sheets
+      const leadData = {
+        email,
+        name: name || 'Nespecificat',
+        type: 'Discount 20%',
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        if (db) {
+          await addDoc(collection(db, 'leads'), leadData);
+        }
+        await logLeadToSheet(leadData);
+      } catch (logErr) {
+        console.error("Error logging lead:", logErr);
       }
 
       await transporter.sendMail({

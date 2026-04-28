@@ -54,6 +54,8 @@ export async function getApartmentBlockedDates(slug: string): Promise<string[]> 
   const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
   const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
 
+  console.log(`[iCal Sync] Syncing ${slug}. Booking: ${!!bookingUrl}, Airbnb: ${!!airbnbUrl}`);
+
   // Also fetch from Google Calendar if configured
   const googleCalendarPromise = process.env.GOOGLE_CALENDAR_ID ? 
     getBlockedDatesFromCalendar(slug) : 
