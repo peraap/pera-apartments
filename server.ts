@@ -10,7 +10,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, query, where, getDocs, collection, addDoc } from "firebase/firestore";
 import { firebaseConfig } from "./src/firebase-config";
 import { logBookingToSheet, logLoginToSheet, getSheetsAuth, logLeadToSheet } from "./google-sheets-storage";
-import { addBookingToCalendar } from "./google-calendar-service";
+import { addBookingToCalendar, syncExternalIcalToGoogle } from "./google-calendar-service";
 import { getApartmentBlockedDates } from "./ical-sync";
 import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
 import { google } from "googleapis";
@@ -624,6 +624,38 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // ----- BACKGROUND SYNC TASK -----
+  const runFullSync = async () => {
+    console.log(`[Background Sync] Starting full iCal -> Google Calendar sync at ${new Date().toISOString()}`);
+    const apartments = [
+      'apartament-premium-king',
+      'apartament-deluxe-double',
+      'apartament-family-standard',
+      'apartament-family-deluxe',
+      'peraduo',
+      'peraconfort'
+    ];
+
+    for (const slug of apartments) {
+      const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+      const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
+      const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
+
+      if (bookingUrl) {
+        await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+      }
+      if (airbnbUrl) {
+        await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+      }
+    }
+    console.log("[Background Sync] Finished full sync.");
+  };
+
+  // Run on start
+  runFullSync();
+  // Run every 30 minutes
+  setInterval(runFullSync, 30 * 60 * 1000);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

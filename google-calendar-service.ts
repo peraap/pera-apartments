@@ -126,3 +126,79 @@ export async function getBlockedDatesFromCalendar(slug: string): Promise<string[
     return [];
   }
 }
+
+/**
+ * Syncs events from an external iCal URL (Airbnb/Booking) into a Google Calendar.
+ * Uses event summary and dates as a basic check to avoid duplicates.
+ */
+export async function syncExternalIcalToGoogle(slug: string, url: string, sourceName: string) {
+  const calendar = await getCalendarClient();
+  if (!calendar) return;
+
+  const calendarId = await getCalendarIdForSlug(slug);
+  if (!calendarId || calendarId === 'primary') {
+    console.log(`[Sync ${sourceName}] Skipping ${slug} - No specific Calendar ID found.`);
+    return;
+  }
+
+  try {
+    const { getBlockedDatesFromIcal } = await import('./ical-sync');
+    // We need more than just dates, we need the full events from the iCal
+    const axios = (await import('axios')).default;
+    const ical = (await import('node-ical')).default;
+    
+    const response = await axios.get(url);
+    const data = ical.parseICS(response.data);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Fetch existing events from Google to skip duplicates
+    const res = await calendar.events.list({
+      calendarId,
+      timeMin: today.toISOString(),
+      singleEvents: true,
+    });
+    const existingEvents = res.data.items || [];
+    const existingKeys = new Set(existingEvents.map(e => 
+      `${e.summary?.toLowerCase()}-${e.start?.date || e.start?.dateTime}-${e.end?.date || e.end?.dateTime}`
+    ));
+
+    console.log(`[Sync ${sourceName}] Checking ${slug} for new events...`);
+
+    for (const k in data) {
+      const ev = data[k];
+      if (ev.type === 'VEVENT' && ev.start && ev.end) {
+        const start = new Date(ev.start);
+        const end = new Date(ev.end);
+        
+        if (end < today) continue; // Skip past events
+
+        const startDateStr = start.toISOString().split('T')[0];
+        const endDateStr = end.toISOString().split('T')[0];
+        const summary = `${sourceName}: Rezervare`;
+        const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
+
+        if (!existingKeys.has(eventKey)) {
+          console.log(`[Sync ${sourceName}] Adding new event to ${slug} (${calendarId}): ${startDateStr} - ${endDateStr}`);
+          
+          await calendar.events.insert({
+            calendarId,
+            requestBody: {
+              summary,
+              description: `Sincronizat automat din ${sourceName}.\nUID iCal: ${ev.uid || 'N/A'}`,
+              start: { date: startDateStr },
+              end: { date: endDateStr },
+              transparency: 'opaque',
+              colorId: sourceName === 'Airbnb' ? '11' : '1', // Red for Airbnb, Blue for Booking
+            }
+          });
+          
+          // Add to set to avoid adding same event twice in this loop
+          existingKeys.add(eventKey);
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error(`[Sync ${sourceName}] Failed for ${slug}:`, error.message);
+  }
+}
