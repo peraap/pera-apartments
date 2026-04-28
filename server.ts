@@ -238,6 +238,8 @@ async function startServer() {
   app.get("/export-ical*", handleIcalExport);
 
   app.get("/api/sync-calendars", async (req, res) => {
+    const targetSlug = req.query.slug as string;
+    
     try {
       const apartments = [
         'apartament-premium-king',
@@ -249,22 +251,36 @@ async function startServer() {
       ];
 
       const results = [];
-      for (const slug of apartments) {
+      const syncApartments = targetSlug ? [targetSlug] : apartments;
+
+      console.log(`[Local Sync] Starting sync for: ${syncApartments.join(', ')}`);
+
+      for (const slug of syncApartments) {
+        if (!apartments.includes(slug)) continue;
+
         const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
         const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
         const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
 
         if (bookingUrl) {
+          console.log(`[Local Sync] Syncing Booking for ${slug}`);
           await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-          results.push(`${slug} (Booking) - Triggered`);
+          results.push(`${slug} (Booking) - Success`);
         }
         if (airbnbUrl) {
+          console.log(`[Local Sync] Syncing Airbnb for ${slug}`);
           await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-          results.push(`${slug} (Airbnb) - Triggered`);
+          results.push(`${slug} (Airbnb) - Success`);
         }
       }
-      res.json({ status: "Sync initiated", results });
+      
+      res.json({ 
+        status: "Sync completed", 
+        results,
+        note: targetSlug ? "Individual sync" : "Full sync"
+      });
     } catch (error: any) {
+      console.error(`[Local Sync] Error:`, error.message);
       res.status(500).json({ error: error.message });
     }
   });

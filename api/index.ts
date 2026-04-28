@@ -27,6 +27,7 @@ app.use((req, res, next) => {
   const isPublicApi = req.path.startsWith('/api/health') || 
                       req.path.includes('export-ical') ||
                       req.path.includes('api/ical') ||
+                      req.path.includes('api/sync-calendars') ||
                       req.path.includes('.ics');
   
   if (isMaintenance && !isPublicApi) {
@@ -199,6 +200,8 @@ app.get("/api/health", (req, res) => {
 });
 
 app.get("/api/sync-calendars", async (req, res) => {
+  const targetSlug = req.query.slug as string;
+  
   try {
     const apartments = [
       'apartament-premium-king',
@@ -210,23 +213,40 @@ app.get("/api/sync-calendars", async (req, res) => {
     ];
 
     const results = [];
-    for (const slug of apartments) {
+    const syncApartments = targetSlug ? [targetSlug] : apartments;
+
+    console.log(`[Vercel Sync] Starting sync for: ${syncApartments.join(', ')}`);
+
+    for (const slug of syncApartments) {
+      if (!apartments.includes(slug)) continue;
+
       const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
       const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
       const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
 
       if (bookingUrl) {
+        console.log(`[Vercel Sync] Found Booking URL for ${slug}`);
         await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-        results.push(`${slug} (Booking) - Triggered`);
+        results.push(`${slug} (Booking) - Success`);
       }
       if (airbnbUrl) {
+        console.log(`[Vercel Sync] Found Airbnb URL for ${slug}`);
         await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-        results.push(`${slug} (Airbnb) - Triggered`);
+        results.push(`${slug} (Airbnb) - Success`);
       }
     }
-    res.json({ status: "Sync initiated", results });
+    
+    res.json({ 
+      status: "Sync completed", 
+      results,
+      note: targetSlug ? "Individual sync" : "Full sync attempted"
+    });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(`[Vercel Sync] Error:`, error.message);
+    res.status(500).json({ 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

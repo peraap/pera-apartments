@@ -133,72 +133,77 @@ export async function getBlockedDatesFromCalendar(slug: string): Promise<string[
   }
 }
 
+import axios from 'axios';
+import icalParser from 'node-ical';
+
 /**
  * Syncs events from an external iCal URL (Airbnb/Booking) into a Google Calendar.
  * Uses event summary and dates as a basic check to avoid duplicates.
  */
 export async function syncExternalIcalToGoogle(slug: string, url: string, sourceName: string) {
+  console.log(`[Sync ${sourceName}] Starting sync for ${slug}...`);
+  
   const calendar = await getCalendarClient();
-  if (!calendar) return;
+  if (!calendar) {
+    console.error(`[Sync ${sourceName}] ❌ Google Calendar client failed to initialize.`);
+    return;
+  }
 
   const calendarId = await getCalendarIdForSlug(slug);
   if (!calendarId || calendarId === 'primary') {
-    console.log(`[Sync ${sourceName}] Skipping ${slug} - No specific Calendar ID found.`);
+    console.log(`[Sync ${sourceName}] ⚠️ Skipping ${slug} - No specific Calendar ID found.`);
     return;
   }
 
   try {
-    const { getBlockedDatesFromIcal } = await import('./ical-sync');
-    // We need more than just dates, we need the full events from the iCal
-    const axios = (await import('axios')).default;
-    const ical = (await import('node-ical')).default;
-    
-    const response = await axios.get(url);
-    const data = ical.parseICS(response.data);
+    console.log(`[Sync ${sourceName}] Fetching ical from: ${url}`);
+    const response = await axios.get(url, { timeout: 8000 });
+    const data = icalParser.parseICS(response.data);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Fetch existing events from Google to skip duplicates
+    console.log(`[Sync ${sourceName}] Fetching existing events from Google...`);
     const res = await calendar.events.list({
       calendarId,
       timeMin: today.toISOString(),
       singleEvents: true,
+      maxResults: 250 // Limit results to avoid memory issues
     });
+    
     const existingEvents = res.data.items || [];
     
     // Create a set of "duplicate detectors"
-    // We use UID if we stored it in the description, or summary+dates
     const existingKeys = new Set();
     existingEvents.forEach(e => {
-      // Try to find UID in description (we store it there)
       const uidMatch = e.description?.match(/UID iCal: (.+)/);
       if (uidMatch) {
-        existingKeys.add(uidMatch[1]);
+        existingKeys.add(uidMatch[1].trim());
       }
-      // Also add summary-date key as fallback
       const start = e.start?.date || (e.start?.dateTime ? e.start.dateTime.split('T')[0] : '');
       const end = e.end?.date || (e.end?.dateTime ? e.end.dateTime.split('T')[0] : '');
       existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
     });
 
-    console.log(`[Sync ${sourceName}] Checking ${slug} for new events. Already has ${existingEvents.length} events in Google.`);
+    console.log(`[Sync ${sourceName}] Found ${Object.keys(data).length} items in iCal. Google has ${existingEvents.length} upcoming events.`);
 
+    let addedCount = 0;
     for (const k in data) {
       const ev = data[k];
       if (ev.type === 'VEVENT' && ev.start && ev.end) {
         const start = new Date(ev.start);
         const end = new Date(ev.end);
         
-        if (end < today) continue; // Skip past events
+        if (end < today) continue; 
 
         const startDateStr = start.toISOString().split('T')[0];
         const endDateStr = end.toISOString().split('T')[0];
         const summary = `${sourceName}: Rezervare`;
         const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
-        const uid = ev.uid || `${eventKey}-${k}`;
+        const uid = (ev.uid || `${eventKey}-${k}`).toString().trim();
 
         if (!existingKeys.has(uid) && !existingKeys.has(eventKey)) {
-          console.log(`[Sync ${sourceName}] Adding new event to ${slug} (${calendarId}): ${startDateStr} - ${endDateStr}`);
+          console.log(`[Sync ${sourceName}] ➕ Adding: ${startDateStr} - ${endDateStr}`);
           
           await calendar.events.insert({
             calendarId,
@@ -208,16 +213,20 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
               start: { date: startDateStr },
               end: { date: endDateStr },
               transparency: 'opaque',
-              colorId: sourceName === 'Airbnb' ? '11' : '1', // Red for Airbnb, Blue for Booking
+              status: 'confirmed',
+              colorId: sourceName === 'Airbnb' ? '11' : '1', 
             }
           });
           
           existingKeys.add(uid);
           existingKeys.add(eventKey);
+          addedCount++;
         }
       }
     }
+    console.log(`[Sync ${sourceName}] ✅ Finished ${slug}. Added ${addedCount} new events.`);
   } catch (error: any) {
-    console.error(`[Sync ${sourceName}] Failed for ${slug}:`, error.message);
+    console.error(`[Sync ${sourceName}] ❌ Failed for ${slug}:`, error.message);
+    throw error; // Re-throw to catch in the API handler
   }
 }
