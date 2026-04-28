@@ -257,36 +257,46 @@ const getVercelCalendarId = (slug: string) => {
     'peraconfort': 'PERACONFORT'
   };
 
-  const lowerSlug = slug.toLowerCase();
+  const lowerSlug = slug.toLowerCase().trim();
   const keyMapped = mapping[lowerSlug];
   
-  // Try to extract a clean name: "apartament-peraduo" -> "PERADUO"
+  // Normalize names
   const cleanName = lowerSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
   const rawKey = lowerSlug.replace(/-/g, '_').toUpperCase();
   const simpleName = lowerSlug.replace('apartament-', '').toUpperCase();
 
-  console.log(`[Vercel Auth] Looking for ID for ${slug}. Keys to try: mapping=${keyMapped}, clean=${cleanName}, simple=${simpleName}, raw=${rawKey}`);
+  console.log(`[Vercel Auth] Search for ${slug} (Mapped: ${keyMapped}, Clean: ${cleanName})`);
 
   // 1. Check JSON first
   if (process.env.GOOGLE_CALENDAR_IDS_JSON) {
     try {
       const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON.trim());
-      const keysToTry = [keyMapped, cleanName, simpleName, rawKey, lowerSlug.toUpperCase()];
+      const keysToTry = [keyMapped, cleanName, simpleName, rawKey, lowerSlug.toUpperCase(), lowerSlug];
       
+      // Step 1: Direct match
       for (const k of keysToTry) {
-        if (k && idsMap[k]) {
-          console.log(`[Vercel Auth] ✅ Found in JSON with key: ${k}`);
-          return idsMap[k];
-        }
+        if (k && idsMap[k]) return idsMap[k];
       }
-      console.log(`[Vercel Auth] ❌ Key not found in JSON. Available: ${Object.keys(idsMap).join(', ')}`);
+
+      // Step 2: Case-insensitive deep search
+      const jsonKeys = Object.keys(idsMap);
+      for (const cand of keysToTry) {
+        if (!cand) continue;
+        const found = jsonKeys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === cand.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        if (found) return idsMap[found];
+      }
+      
+      // Step 3: Partial match if desperate
+      const foundPartial = jsonKeys.find(k => k.toLowerCase().includes(simpleName.toLowerCase()) || simpleName.toLowerCase().includes(k.toLowerCase()));
+      if (foundPartial && simpleName.length > 3) return idsMap[foundPartial];
+
     } catch (e: any) {
-      console.error("[Vercel Auth] JSON Parse Error:", e.message);
+      console.error("[Vercel Auth] JSON Error:", e.message);
     }
   }
 
   // 2. Check individual variables
-  const keysToTryEnv = [keyMapped, cleanName, simpleName, rawKey, lowerSlug.toUpperCase()].filter(Boolean) as string[];
+  const keysToTryEnv = [keyMapped, cleanName, simpleName, rawKey].filter(Boolean) as string[];
   for (const k of keysToTryEnv) {
     const val = process.env[`GOOGLE_CALENDAR_ID_${k}`];
     if (val) return val;
@@ -367,55 +377,56 @@ app.get("/api/sync-calendars", async (req, res) => {
   
   try {
     const apartments = [
+      'premium-king',
       'apartament-premium-king',
+      'deluxe-double',
       'apartament-deluxe-double',
+      'family-standard',
       'apartament-family-standard',
+      'family-deluxe',
       'apartament-family-deluxe',
       'peraduo',
-      'peraconfort'
+      'apartament-peraduo',
+      'peraconfort',
+      'apartament-peraconfort'
     ];
 
     const results: any[] = [];
+    const targetSlugLower = targetSlug ? targetSlug.toLowerCase() : null;
+    let syncApartments = targetSlugLower ? [targetSlugLower] : [apartments[0]];
     
-    // Vercel Timeout Protection: If no slug, only sync ONE apartment at a time 
-    // unless explicitly told to do more (which might fail)
-    let syncApartments = targetSlug ? [targetSlug] : apartments;
-    
-    if (!targetSlug && !req.query.all) {
-       // Just sync the first one if none specified to avoid timeout
-       syncApartments = [apartments[0]];
+    if (req.query.all) {
+      syncApartments = apartments;
     }
 
     console.log(`[Vercel Sync] Starting sync for: ${syncApartments.join(', ')}`);
 
     for (const slug of syncApartments) {
-      if (!apartments.includes(slug)) {
-        results.push({ slug, status: "ignored (invalid slug)" });
+      const isKnown = apartments.includes(slug);
+      if (!isKnown) {
+        results.push({ slug, status: "ignored (invalid slug name)" });
         continue;
       }
 
-      const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
-      const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
-      const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
+      // Base name for ENV lookup: "apartament-peraduo" -> "PERADUO"
+      const baseName = slug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+      const bookingUrl = process.env[`ICAL_BOOKING_${baseName}`];
+      const airbnbUrl = process.env[`ICAL_AIRBNB_${baseName}`];
 
       if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
-        console.log(`[Vercel Sync] Booking URL found for ${slug}`);
         try {
           const added = await syncToGoogleInternal(slug, bookingUrl, 'Booking.com');
           results.push({ slug, source: 'Booking', status: 'success', added });
         } catch (err: any) {
-          console.error(`[Vercel Sync] Booking Error for ${slug}:`, err.message);
           results.push({ slug, source: 'Booking', status: 'error', message: err.message });
         }
       }
       
       if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
-        console.log(`[Vercel Sync] Airbnb URL found for ${slug}`);
         try {
           const added = await syncToGoogleInternal(slug, airbnbUrl, 'Airbnb');
           results.push({ slug, source: 'Airbnb', status: 'success', added });
         } catch (err: any) {
-          console.error(`[Vercel Sync] Airbnb Error for ${slug}:`, err.message);
           results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
         }
       }
@@ -432,6 +443,130 @@ app.get("/api/sync-calendars", async (req, res) => {
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+});
+
+app.get("/api/apartments/:slug/blocked-dates", async (req, res) => {
+  const slug = req.params.slug;
+  // Use same robust normalization
+  const baseName = slug.toLowerCase().replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+  
+  const bookingUrl = process.env[`ICAL_BOOKING_${baseName}`];
+  const airbnbUrl = process.env[`ICAL_AIRBNB_${baseName}`];
+
+  console.log(`[Vercel API] Fetching blocked dates for ${slug}. BaseName: ${baseName}`);
+
+  const fetchIcal = async (url: string) => {
+    try {
+      const response = await axios.get(url, { timeout: 10000 });
+      const data = icalParser.parseICS(response.data);
+      const blockedDates: Set<string> = new Set();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (const k in data) {
+        const ev = data[k];
+        if (ev.type === 'VEVENT' && ev.start && ev.end) {
+          const start = new Date(ev.start);
+          const end = new Date(ev.end);
+          if (end >= today) {
+            const current = new Date(start);
+            while (current <= end) {
+              blockedDates.add(current.toISOString().split('T')[0]);
+              current.setDate(current.getDate() + 1);
+            }
+          }
+        }
+      }
+      return Array.from(blockedDates);
+    } catch (e: any) {
+      console.error(`[Vercel API] iCal Error for ${url}:`, e.message);
+      return [];
+    }
+  };
+
+  const getGoogleCalendarDates = async () => {
+    try {
+      const auth = getVercelGoogleAuth();
+      if (!auth) return [];
+      const calendarId = getVercelCalendarId(slug);
+      if (calendarId === 'primary') return [];
+
+      const calendar = google.calendar({ version: 'v3', auth });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const response = await calendar.events.list({
+        calendarId,
+        timeMin: today.toISOString(),
+        singleEvents: true,
+        maxResults: 250
+      });
+
+      const dates: Set<string> = new Set();
+      (response.data.items || []).forEach(event => {
+        const startStr = event.start?.date || event.start?.dateTime?.split('T')[0];
+        const endStr = event.end?.date || event.end?.dateTime?.split('T')[0];
+        if (startStr && endStr) {
+          let current = new Date(startStr);
+          const end = new Date(endStr);
+          while (current < end) {
+            dates.add(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+          }
+        }
+      });
+      return Array.from(dates);
+    } catch (e: any) {
+      console.error(`[Vercel API] Google Calendar Error for ${slug}:`, e.message);
+      return [];
+    }
+  };
+
+  // Get manual blocks from Firestore
+  const getManualBlocks = async () => {
+    const dates: Set<string> = new Set();
+    try {
+      const normalizedSlug = slug.trim().toLowerCase();
+      const q = query(collection(db, "manual_blocks"));
+      const snapshot = await getDocs(q);
+      
+      snapshot.forEach(doc => {
+        const block = doc.data();
+        const blockAptId = (block.apartmentId || '').trim().toLowerCase();
+        
+        const isMatch = blockAptId === normalizedSlug || 
+                        normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
+                        blockAptId.includes(normalizedSlug.replace(/-/g, ' '));
+        
+        if (isMatch && block.startDate && block.endDate) {
+          const start = new Date(block.startDate);
+          const end = new Date(block.endDate);
+          let current = new Date(start);
+          while (current <= end) {
+            dates.add(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+          }
+        }
+      });
+    } catch (e: any) {
+      console.error("[Vercel API] Manual Blocks Error:", e.message);
+    }
+    return Array.from(dates);
+  };
+
+  try {
+    const [bookingDates, airbnbDates, googleDates, manualDates] = await Promise.all([
+      bookingUrl ? fetchIcal(bookingUrl) : Promise.resolve([]),
+      airbnbUrl ? fetchIcal(airbnbUrl) : Promise.resolve([]),
+      getGoogleCalendarDates(),
+      getManualBlocks()
+    ]);
+
+    const allDates = new Set([...bookingDates, ...airbnbDates, ...googleDates, ...manualDates]);
+    res.json(Array.from(allDates));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
