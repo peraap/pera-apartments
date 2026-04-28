@@ -113,6 +113,8 @@ async function startServer() {
   const handleIcalExport = async (req: any, res: any) => {
     try {
       let slug = req.params.slug || req.params[0];
+      if (slug && slug.startsWith('/')) slug = slug.substring(1);
+      
       console.log(`[iCal Export Request] Raw slug from params: ${slug}`);
       
       if (slug && slug.toLowerCase().endsWith('.ics')) {
@@ -153,13 +155,28 @@ async function startServer() {
         let hasEvents = false;
         querySnapshot.forEach((doc: any) => {
           const booking = doc.data();
-          const matchesSlug = booking.apartmentId === slug || 
-                             (booking.apartmentName && booking.apartmentName.toLowerCase().includes(slug.replace(/-/g, ' '))) ||
-                             (slug === 'peraconfort' && booking.apartmentId === 'pera-confort') ||
-                             (slug === 'peraduo' && booking.apartmentId === 'pera-duo') ||
-                             (booking.shortName && booking.shortName.toLowerCase() === slug.toLowerCase());
+          const aptName = (booking.apartmentName || '').toLowerCase();
+          const aptId = (booking.apartmentId || '').toLowerCase();
+          const searchSlug = slug.toLowerCase();
+          const searchName = searchSlug.replace(/-/g, ' ');
+
+          // Explicit mapping for common user slugs
+          const slugAliases: Record<string, string[]> = {
+            'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
+            'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
+            'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe'],
+            'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard'],
+            'peraduo': ['5', 'pera-duo', 'peraduo'],
+            'peraconfort': ['6', 'pera-confort', 'peraconfort']
+          };
+
+          const aliases = slugAliases[searchSlug] || [];
           
-          if (matchesSlug && booking.checkIn && booking.checkOut) {
+          const isDirectIdMatch = aptId === searchSlug || aliases.includes(aptId);
+          const isNameMatch = aptName.includes(searchName) || aliases.some(alias => aptName.includes(alias));
+          const isShortNameMatch = booking.shortName && booking.shortName.toLowerCase() === searchSlug;
+
+          if ((isDirectIdMatch || isNameMatch || isShortNameMatch) && booking.checkIn && booking.checkOut) {
             hasEvents = true;
             calendar.createEvent({
               id: doc.id,

@@ -10,9 +10,13 @@ export async function getCalendarClient() {
 export async function getCalendarIdForSlug(slug: string): Promise<string> {
   const mapping: Record<string, string> = {
     'apartament-premium-king': 'KING',
+    'premium-king': 'KING',
     'apartament-deluxe-double': 'DUBLA_DELUXE',
+    'deluxe-double': 'DUBLA_DELUXE',
     'apartament-family-standard': 'FAMILIE',
+    'family-standard': 'FAMILIE',
     'apartament-family-deluxe': 'FAMILIE_DELUXE',
+    'family-deluxe': 'FAMILIE_DELUXE',
     'peraduo': 'PERADUO',
     'peraconfort': 'PERACONFORT',
     'pera-duo': 'PERADUO',
