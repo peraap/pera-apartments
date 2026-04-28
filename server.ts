@@ -237,6 +237,38 @@ async function startServer() {
   app.get("/api/export-ical*", handleIcalExport);
   app.get("/export-ical*", handleIcalExport);
 
+  app.get("/api/sync-calendars", async (req, res) => {
+    try {
+      const apartments = [
+        'apartament-premium-king',
+        'apartament-deluxe-double',
+        'apartament-family-standard',
+        'apartament-family-deluxe',
+        'peraduo',
+        'peraconfort'
+      ];
+
+      const results = [];
+      for (const slug of apartments) {
+        const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+        const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
+        const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
+
+        if (bookingUrl) {
+          await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+          results.push(`${slug} (Booking) - Triggered`);
+        }
+        if (airbnbUrl) {
+          await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+          results.push(`${slug} (Airbnb) - Triggered`);
+        }
+      }
+      res.json({ status: "Sync initiated", results });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 

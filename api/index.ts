@@ -6,6 +6,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
 import admin from "firebase-admin";
+import { syncExternalIcalToGoogle } from "../google-calendar-service";
 
 const firebaseConfig = {
   "projectId": "gen-lang-client-0517351691",
@@ -195,6 +196,38 @@ app.get("/api/health", (req, res) => {
     adminDbInitialized: !!adminDb,
     dbInitialized: !!db
   });
+});
+
+app.get("/api/sync-calendars", async (req, res) => {
+  try {
+    const apartments = [
+      'apartament-premium-king',
+      'apartament-deluxe-double',
+      'apartament-family-standard',
+      'apartament-family-deluxe',
+      'peraduo',
+      'peraconfort'
+    ];
+
+    const results = [];
+    for (const slug of apartments) {
+      const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+      const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
+      const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
+
+      if (bookingUrl) {
+        await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+        results.push(`${slug} (Booking) - Triggered`);
+      }
+      if (airbnbUrl) {
+        await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+        results.push(`${slug} (Airbnb) - Triggered`);
+      }
+    }
+    res.json({ status: "Sync initiated", results });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Improved route matching

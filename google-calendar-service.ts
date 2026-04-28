@@ -23,21 +23,27 @@ export async function getCalendarIdForSlug(slug: string): Promise<string> {
     'pera-confort': 'PERACONFORT'
   };
 
-  const key = mapping[slug.toLowerCase()] || slug.replace(/-/g, '_').toUpperCase();
+  const key = mapping[slug.toLowerCase()];
+  const altKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
 
-  // 1. Check consolidated JSON first (to save slots)
+  // 1. Check consolidated JSON first
   if (process.env.GOOGLE_CALENDAR_IDS_JSON) {
     try {
       const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON);
-      if (idsMap[key]) return idsMap[key];
+      if (key && idsMap[key]) return idsMap[key];
+      if (idsMap[altKey]) return idsMap[altKey];
+      if (idsMap[slug]) return idsMap[slug];
     } catch (e) {
       console.error("Error parsing GOOGLE_CALENDAR_IDS_JSON:", e);
     }
   }
 
-  // 2. Fallback to individual variables
-  const specificId = process.env[`GOOGLE_CALENDAR_ID_${key}`];
-  if (specificId) return specificId;
+  // 2. Check individual variables with all possible keys
+  const keysToTry = [key, altKey, slug.toUpperCase()].filter(Boolean) as string[];
+  for (const k of keysToTry) {
+    const val = process.env[`GOOGLE_CALENDAR_ID_${k}`];
+    if (val) return val;
+  }
   
   return 'primary';
 }
@@ -159,11 +165,23 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
       singleEvents: true,
     });
     const existingEvents = res.data.items || [];
-    const existingKeys = new Set(existingEvents.map(e => 
-      `${e.summary?.toLowerCase()}-${e.start?.date || e.start?.dateTime}-${e.end?.date || e.end?.dateTime}`
-    ));
+    
+    // Create a set of "duplicate detectors"
+    // We use UID if we stored it in the description, or summary+dates
+    const existingKeys = new Set();
+    existingEvents.forEach(e => {
+      // Try to find UID in description (we store it there)
+      const uidMatch = e.description?.match(/UID iCal: (.+)/);
+      if (uidMatch) {
+        existingKeys.add(uidMatch[1]);
+      }
+      // Also add summary-date key as fallback
+      const start = e.start?.date || (e.start?.dateTime ? e.start.dateTime.split('T')[0] : '');
+      const end = e.end?.date || (e.end?.dateTime ? e.end.dateTime.split('T')[0] : '');
+      existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+    });
 
-    console.log(`[Sync ${sourceName}] Checking ${slug} for new events...`);
+    console.log(`[Sync ${sourceName}] Checking ${slug} for new events. Already has ${existingEvents.length} events in Google.`);
 
     for (const k in data) {
       const ev = data[k];
@@ -177,15 +195,16 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
         const endDateStr = end.toISOString().split('T')[0];
         const summary = `${sourceName}: Rezervare`;
         const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
+        const uid = ev.uid || `${eventKey}-${k}`;
 
-        if (!existingKeys.has(eventKey)) {
+        if (!existingKeys.has(uid) && !existingKeys.has(eventKey)) {
           console.log(`[Sync ${sourceName}] Adding new event to ${slug} (${calendarId}): ${startDateStr} - ${endDateStr}`);
           
           await calendar.events.insert({
             calendarId,
             requestBody: {
               summary,
-              description: `Sincronizat automat din ${sourceName}.\nUID iCal: ${ev.uid || 'N/A'}`,
+              description: `Sincronizat automat din ${sourceName}.\nUID iCal: ${uid}`,
               start: { date: startDateStr },
               end: { date: endDateStr },
               transparency: 'opaque',
@@ -193,7 +212,7 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
             }
           });
           
-          // Add to set to avoid adding same event twice in this loop
+          existingKeys.add(uid);
           existingKeys.add(eventKey);
         }
       }
