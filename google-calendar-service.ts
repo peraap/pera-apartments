@@ -38,6 +38,8 @@ export async function getCalendarIdForSlug(slug: string): Promise<string> {
       const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON);
       if (key && idsMap[key]) return idsMap[key];
       if (idsMap[altKey]) return idsMap[altKey];
+      if (idsMap[slug.toUpperCase().replace(/-/g, '_')]) return idsMap[slug.toUpperCase().replace(/-/g, '_')];
+      if (idsMap[slug.toUpperCase()]) return idsMap[slug.toUpperCase()];
       if (idsMap[slug]) return idsMap[slug];
     } catch (e) {
       console.error("Error parsing GOOGLE_CALENDAR_IDS_JSON:", e);
@@ -45,7 +47,7 @@ export async function getCalendarIdForSlug(slug: string): Promise<string> {
   }
 
   // 2. Check individual variables with all possible keys
-  const keysToTry = [key, altKey, slug.toUpperCase()].filter(Boolean) as string[];
+  const keysToTry = [key, altKey, slug.toUpperCase().replace(/-/g, '_'), slug.toUpperCase()].filter(Boolean) as string[];
   for (const k of keysToTry) {
     const val = process.env[`GOOGLE_CALENDAR_ID_${k}`];
     if (val) return val;

@@ -208,23 +208,35 @@ const getVercelGoogleAuth = () => {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   let privateKey = process.env.GOOGLE_PRIVATE_KEY;
 
-  if (!email || !privateKey) return null;
-
-  if (privateKey.includes('\\n')) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
-  privateKey = privateKey.trim();
-  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-    privateKey = privateKey.substring(1, privateKey.length - 1);
+  if (!email || !privateKey) {
+    console.error("[Vercel Auth] Missing email or private key");
+    return null;
   }
 
+  // Robust key scrubbing
   try {
+    if (privateKey.includes('\\n')) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+    
+    privateKey = privateKey.trim();
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.substring(1, privateKey.length - 1);
+    }
+    
+    // Ensure it has the headers if they were lost
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+       // This is risky but sometimes needed if user only pasted the middle part
+       // But usually we expect the full key.
+    }
+
     return new google.auth.JWT({
       email,
       key: privateKey,
       scopes: ['https://www.googleapis.com/auth/calendar'],
     });
-  } catch (err) {
+  } catch (err: any) {
+    console.error("[Vercel Auth] JWT Init Error:", err.message);
     return null;
   }
 };
@@ -242,17 +254,29 @@ const getVercelCalendarId = (slug: string) => {
     'peraduo': 'PERADUO',
     'peraconfort': 'PERACONFORT'
   };
+
   const key = mapping[slug.toLowerCase()];
   const altKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
 
+  // 1. Check JSON first
   if (process.env.GOOGLE_CALENDAR_IDS_JSON) {
     try {
       const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON);
       if (key && idsMap[key]) return idsMap[key];
       if (idsMap[altKey]) return idsMap[altKey];
+      if (idsMap[slug.toUpperCase()]) return idsMap[slug.toUpperCase()];
+      if (idsMap[slug]) return idsMap[slug];
     } catch (e) {}
   }
-  return process.env[`GOOGLE_CALENDAR_ID_${key || altKey}`] || 'primary';
+
+  // 2. Check individual variables
+  const keysToTry = [key, altKey, slug.toUpperCase().replace(/-/g, '_'), slug.toUpperCase()].filter(Boolean) as string[];
+  for (const k of keysToTry) {
+    const val = process.env[`GOOGLE_CALENDAR_ID_${k}`];
+    if (val) return val;
+  }
+
+  return 'primary';
 };
 
 async function syncToGoogleInternal(slug: string, url: string, sourceName: string) {
@@ -336,7 +360,15 @@ app.get("/api/sync-calendars", async (req, res) => {
     ];
 
     const results: any[] = [];
-    const syncApartments = targetSlug ? [targetSlug] : apartments;
+    
+    // Vercel Timeout Protection: If no slug, only sync ONE apartment at a time 
+    // unless explicitly told to do more (which might fail)
+    let syncApartments = targetSlug ? [targetSlug] : apartments;
+    
+    if (!targetSlug && !req.query.all) {
+       // Just sync the first one if none specified to avoid timeout
+       syncApartments = [apartments[0]];
+    }
 
     console.log(`[Vercel Sync] Starting sync for: ${syncApartments.join(', ')}`);
 
@@ -351,32 +383,32 @@ app.get("/api/sync-calendars", async (req, res) => {
       const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
 
       if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
-        console.log(`[Vercel Sync] Found Booking URL for ${slug}`);
+        console.log(`[Vercel Sync] Booking URL found for ${slug}`);
         try {
           const added = await syncToGoogleInternal(slug, bookingUrl, 'Booking.com');
           results.push({ slug, source: 'Booking', status: 'success', added });
         } catch (err: any) {
-          console.error(`[Vercel Sync] Error Booking ${slug}:`, err.message);
+          console.error(`[Vercel Sync] Booking Error for ${slug}:`, err.message);
           results.push({ slug, source: 'Booking', status: 'error', message: err.message });
         }
       }
       
       if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
-        console.log(`[Vercel Sync] Found Airbnb URL for ${slug}`);
+        console.log(`[Vercel Sync] Airbnb URL found for ${slug}`);
         try {
           const added = await syncToGoogleInternal(slug, airbnbUrl, 'Airbnb');
           results.push({ slug, source: 'Airbnb', status: 'success', added });
         } catch (err: any) {
-          console.error(`[Vercel Sync] Error Airbnb ${slug}:`, err.message);
+          console.error(`[Vercel Sync] Airbnb Error for ${slug}:`, err.message);
           results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
         }
       }
     }
     
     res.json({ 
-      status: "Sync process finished", 
+      status: "Sync attempt finished", 
       results,
-      note: targetSlug ? "Individual sync" : "Full sync attempted"
+      note: !targetSlug ? "Only synced first apartment to avoid Vercel timeout. Pass ?slug=NAME for others." : "Individual sync sync"
     });
   } catch (error: any) {
     console.error(`[Vercel Sync] Critical Error:`, error.message);
