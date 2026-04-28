@@ -210,10 +210,20 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
         const startDateStr = start.toISOString().split('T')[0];
         const endDateStr = end.toISOString().split('T')[0];
         
+        // Try to detect source more robustly
         let effectiveSource = sourceName;
-        const icalSummary = (ev.summary || '').toString();
-        if (sourceName === 'Airbnb' && (icalSummary.toLowerCase().includes('booking') || icalSummary.toLowerCase().includes('expedia'))) {
-          effectiveSource = 'External (Sync)';
+        const icalSummary = (ev.summary || '').toString().toLowerCase();
+        const icalDescription = (ev.description || '').toString().toLowerCase();
+        
+        if (sourceName === 'Airbnb') {
+          if (icalSummary.includes('booking') || icalDescription.includes('booking')) {
+            effectiveSource = 'Booking.com';
+          } else if (icalSummary.includes('expedia') || icalDescription.includes('expedia')) {
+            effectiveSource = 'Expedia';
+          } else if (icalSummary.includes('reserved') && !icalSummary.includes('airbnb')) {
+            // generic reserved often comes from other imports in airbnb
+            effectiveSource = 'External (Sync)';
+          }
         }
 
         const summary = `${effectiveSource}: Rezervare`;

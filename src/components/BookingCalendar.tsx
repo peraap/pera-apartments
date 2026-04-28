@@ -104,7 +104,8 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
 
   const calculateNights = () => {
     if (range?.from && range?.to) {
-      return Math.max(1, differenceInDays(range.to, range.from));
+      const nights = differenceInDays(range.to, range.from);
+      return Math.max(1, nights); 
     }
     return 0;
   };
@@ -138,6 +139,12 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   const handleBooking = async () => {
     if (!range?.from || !range?.to) {
       toast.error('Te rugăm să selectezi perioada rezervării.');
+      return;
+    }
+
+    // Bug fix: Check if stay is at least 1 night
+    if (format(range.from, 'yyyy-MM-dd') === format(range.to, 'yyyy-MM-dd')) {
+      toast.error('Perioada rezervării trebuie să fie de minim o noapte.');
       return;
     }
 

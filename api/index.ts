@@ -356,11 +356,20 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
       const startDateStr = start.toISOString().split('T')[0];
       const endDateStr = end.toISOString().split('T')[0];
       
-      // Try to detect source from summary if it's an Airbnb sync containing Booking info
+      // Try to detect source more robustly
       let effectiveSource = sourceName;
-      const icalSummary = (ev.summary || '').toString();
-      if (sourceName === 'Airbnb' && (icalSummary.toLowerCase().includes('booking') || icalSummary.toLowerCase().includes('expedia'))) {
-        effectiveSource = 'External (Sync)';
+      const icalSummary = (ev.summary || '').toString().toLowerCase();
+      const icalDescription = (ev.description || '').toString().toLowerCase();
+      
+      if (sourceName === 'Airbnb') {
+        if (icalSummary.includes('booking') || icalDescription.includes('booking')) {
+          effectiveSource = 'Booking.com';
+        } else if (icalSummary.includes('expedia') || icalDescription.includes('expedia')) {
+          effectiveSource = 'Expedia';
+        } else if (icalSummary.includes('reserved') && !icalSummary.includes('airbnb')) {
+          // generic reserved often comes from other imports in airbnb
+          effectiveSource = 'External (Sync)';
+        }
       }
 
       const summary = `${effectiveSource}: Rezervare`;
@@ -432,6 +441,8 @@ app.get("/api/sync-calendars", async (req, res) => {
       const bookingUrl = process.env[`ICAL_BOOKING_${baseName}`];
       const airbnbUrl = process.env[`ICAL_AIRBNB_${baseName}`];
 
+      // BASE PRIORITY: Sync Booking FIRST because Airbnb iCal often includes imported Booking events
+      // Syncing Booking directly ensures it gets the correct label before Airbnb sync encounters the date
       if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
         try {
           const added = await syncToGoogleInternal(slug, bookingUrl, 'Booking.com');
@@ -773,6 +784,11 @@ app.use(express.json());
 app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
+
+    // Validation: Check-in must be before check-out
+    if (new Date(checkOut) <= new Date(checkIn)) {
+      return res.status(400).json({ error: "Data check-out trebuie să fie după data check-in." });
+    }
 
     if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === "sk_test_placeholder") {
       return res.status(500).json({ error: "Configurația Stripe lipsește (STRIPE_SECRET_KEY)." });
