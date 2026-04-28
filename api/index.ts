@@ -109,38 +109,48 @@ const handleIcalExportInternal = async (req: any, res: any) => {
 
     if (adminDb || db) {
       let querySnapshot;
+      let manualBlocksSnapshot;
       try {
         if (adminDb) {
           querySnapshot = await adminDb.collection('bookings')
             .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
             .get();
+            
+          manualBlocksSnapshot = await adminDb.collection('manual_blocks').get();
         } else {
           const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
           querySnapshot = await getDocs(q);
+          
+          const mq = query(collection(db, 'manual_blocks'));
+          manualBlocksSnapshot = await getDocs(mq);
         }
       } catch (fetchError: any) {
         console.error("[iCal Export Vercel] Fetch failed:", fetchError.message);
         querySnapshot = { forEach: () => {} };
+        manualBlocksSnapshot = { forEach: () => {} };
       }
       
       let hasEvents = false;
+      const searchSlug = slug.toLowerCase();
+      const searchName = searchSlug.replace(/-/g, ' ');
+
+      const slugAliases: Record<string, string[]> = {
+        'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room', 'king-room', 'premium-king'],
+        'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double', 'deluxe-double'],
+        'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe', 'family-deluxe'],
+        'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard', 'family-standard'],
+        'peraduo': ['5', 'pera-duo', 'peraduo'],
+        'peraconfort': ['6', 'pera-confort', 'peraconfort']
+      };
+      
+      const aliases = slugAliases[searchSlug] || [];
+
+      // Process real bookings
       querySnapshot.forEach((doc: any) => {
         const booking = doc.data();
         const aptName = (booking.apartmentName || '').toLowerCase();
         const aptId = (booking.apartmentId || '').toLowerCase();
-        const searchSlug = slug.toLowerCase();
-        const searchName = searchSlug.replace(/-/g, ' ');
 
-        const slugAliases: Record<string, string[]> = {
-          'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room', 'king-room', 'premium-king'],
-          'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double', 'deluxe-double'],
-          'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe', 'family-deluxe'],
-          'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard', 'family-standard'],
-          'peraduo': ['5', 'pera-duo', 'peraduo'],
-          'peraconfort': ['6', 'pera-confort', 'peraconfort']
-        };
-
-        const aliases = slugAliases[searchSlug] || [];
         const isDirectIdMatch = aptId === searchSlug || aliases.includes(aptId);
         const isNameMatch = aptName.includes(searchName) || aliases.some(alias => aptName.includes(alias));
         const isShortNameMatch = booking.shortName && booking.shortName.toLowerCase() === searchSlug;
@@ -154,6 +164,30 @@ const handleIcalExportInternal = async (req: any, res: any) => {
             allDay: true,
             summary: 'Rezervare Site (Pera Apartments)',
             description: `Oaspete: ${booking.guestName}`,
+            busystatus: ICalEventBusyStatus.BUSY
+          });
+        }
+      });
+
+      // Process manual blocks
+      manualBlocksSnapshot.forEach((doc: any) => {
+        const block = doc.data();
+        const blockAptId = (block.apartmentId || '').toLowerCase();
+        
+        const isMatch = blockAptId === searchSlug || 
+                        aliases.includes(blockAptId) ||
+                        searchSlug.includes(blockAptId.replace(/ /g, '-')) ||
+                        blockAptId.includes(searchSlug.replace(/-/g, ' '));
+
+        if (isMatch && block.startDate && block.endDate) {
+          hasEvents = true;
+          calendar.createEvent({
+            id: `manual-${doc.id}`,
+            start: new Date(block.startDate),
+            end: new Date(block.endDate),
+            allDay: true,
+            summary: block.reason || 'Blocat (Pera Apartments)',
+            description: 'Blocare manuală din panoul de administrare.',
             busystatus: ICalEventBusyStatus.BUSY
           });
         }
@@ -305,7 +339,7 @@ const getVercelCalendarId = (slug: string) => {
   return 'primary';
 };
 
-async function syncToGoogleInternal(slug: string, url: string, sourceName: string) {
+async function syncToGoogleInternal(slug: string, url: string, sourceName: string, sessionDates?: Set<string>) {
   const auth = getVercelGoogleAuth();
   if (!auth) throw new Error("Auth initialization failed");
   
@@ -361,13 +395,18 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
       const icalSummary = (ev.summary || '').toString().toLowerCase();
       const icalDescription = (ev.description || '').toString().toLowerCase();
       
+      // If we are syncing Airbnb, but the event summary contains "booking.com" or "reserved" 
+      // without airbnb branding, it's almost certainly an imported event from Booking.com
       if (sourceName === 'Airbnb') {
-        if (icalSummary.includes('booking') || icalDescription.includes('booking')) {
+        const isBookingSearch = icalSummary.includes('booking') || icalDescription.includes('booking');
+        const isExpediaSearch = icalSummary.includes('expedia') || icalDescription.includes('expedia');
+        const isGenericReserved = icalSummary.includes('reserved') && !icalSummary.includes('airbnb');
+
+        if (isBookingSearch) {
           effectiveSource = 'Booking.com';
-        } else if (icalSummary.includes('expedia') || icalDescription.includes('expedia')) {
+        } else if (isExpediaSearch) {
           effectiveSource = 'Expedia';
-        } else if (icalSummary.includes('reserved') && !icalSummary.includes('airbnb')) {
-          // generic reserved often comes from other imports in airbnb
+        } else if (isGenericReserved) {
           effectiveSource = 'External (Sync)';
         }
       }
@@ -377,7 +416,10 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
       const dateKey = `${startDateStr}-${endDateStr}`;
       const uid = (ev.uid || `${eventKey}-${k}`).toString().trim();
 
-      if (!existingKeys.has(uid) && !existingKeys.has(eventKey) && !existingDates.has(dateKey)) {
+      const isAlreadyInGoogle = existingKeys.has(uid) || existingKeys.has(eventKey) || existingDates.has(dateKey);
+      const isAlreadyAddedInThisSession = sessionDates?.has(`${slug}-${dateKey}`);
+
+      if (!isAlreadyInGoogle && !isAlreadyAddedInThisSession) {
         await calendar.events.insert({
           calendarId,
           requestBody: {
@@ -391,12 +433,107 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
         });
         existingKeys.add(uid);
         existingKeys.add(eventKey);
+        if (sessionDates) sessionDates.add(`${slug}-${dateKey}`);
         added++;
         if (added >= 5) break; // Safety limit for Vercel
       }
     }
   }
   return added;
+}
+
+async function syncInternalFirestoreToGoogle(slug: string, sessionDates: Set<string>) {
+  const auth = getVercelGoogleAuth();
+  if (!auth) return 0;
+  const calendarId = getVercelCalendarId(slug);
+  if (!calendarId || calendarId === 'primary') return 0;
+  
+  const calendar = google.calendar({ version: 'v3', auth });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Fetch current Google events to avoid duplicates
+  const res = await calendar.events.list({
+    calendarId,
+    timeMin: today.toISOString(),
+    singleEvents: true,
+    maxResults: 250
+  });
+  const existingKeys = new Set();
+  const existingDates = new Set();
+  (res.data.items || []).forEach((e: any) => {
+    const start = e.start?.date || e.start?.dateTime?.split('T')[0];
+    const end = e.end?.date || e.end?.dateTime?.split('T')[0];
+    if (start && end) {
+      existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+      existingDates.add(`${start}-${end}`);
+    }
+  });
+
+  let addedCount = 0;
+  const normalizedSlug = slug.toLowerCase();
+
+  // 1. Blocks from Firestore
+  const qBlocks = query(collection(db, "manual_blocks"));
+  const blocksSnap = await getDocs(qBlocks);
+  for (const docObj of blocksSnap.docs) {
+    const b = docObj.data();
+    const aptId = (b.apartmentId || '').toLowerCase();
+    if (aptId === normalizedSlug && b.startDate && b.endDate) {
+      const startStr = b.startDate.split('T')[0];
+      const endStr = b.endDate.split('T')[0];
+      const summary = b.reason || 'Sărbătoare / Blocat Manual';
+      const eventKey = `${summary.toLowerCase()}-${startStr}-${endStr}`;
+      const dateKey = `${startStr}-${endStr}`;
+
+      if (!existingKeys.has(eventKey) && !existingDates.has(dateKey) && !sessionDates.has(`${slug}-${dateKey}`)) {
+        await calendar.events.insert({
+          calendarId,
+          requestBody: {
+            summary,
+            description: `Blocare manuală din Pera Site-Admin.\nID: ${docObj.id}`,
+            start: { date: startStr },
+            end: { date: endStr },
+            colorId: '8' // Grey
+          }
+        });
+        sessionDates.add(`${slug}-${dateKey}`);
+        addedCount++;
+      }
+    }
+  }
+
+  // 2. Bookings from Firestore
+  const qBookings = query(collection(db, "bookings"), where("status", "in", ["confirmed", "paid"]));
+  const bookingsSnap = await getDocs(qBookings);
+  for (const docObj of bookingsSnap.docs) {
+    const b = docObj.data();
+    const aptId = (b.apartmentId || '').toLowerCase();
+    if (aptId === normalizedSlug && b.checkIn && b.checkOut) {
+      const startStr = b.checkIn;
+      const endStr = b.checkOut;
+      const summary = `Site: ${b.guestName || 'Rezervare'}`;
+      const eventKey = `${summary.toLowerCase()}-${startStr}-${endStr}`;
+      const dateKey = `${startStr}-${endStr}`;
+
+      if (!existingKeys.has(eventKey) && !existingDates.has(dateKey) && !sessionDates.has(`${slug}-${dateKey}`)) {
+        await calendar.events.insert({
+          calendarId,
+          requestBody: {
+            summary,
+            description: `Rezervare site Pera Apartments.\nOaspete: ${b.guestName}\nTotal: ${b.totalPrice} RON`,
+            start: { date: startStr },
+            end: { date: endStr },
+            colorId: '2' // Sage (Site)
+          }
+        });
+        sessionDates.add(`${slug}-${dateKey}`);
+        addedCount++;
+      }
+    }
+  }
+
+  return addedCount;
 }
 
 app.get("/api/sync-calendars", async (req, res) => {
@@ -428,6 +565,7 @@ app.get("/api/sync-calendars", async (req, res) => {
     }
 
     console.log(`[Vercel Sync] Starting sync for: ${syncApartments.join(', ')}`);
+    const sessionAddedDates = new Set<string>();
 
     for (const slug of syncApartments) {
       const isKnown = apartments.includes(slug);
@@ -442,10 +580,9 @@ app.get("/api/sync-calendars", async (req, res) => {
       const airbnbUrl = process.env[`ICAL_AIRBNB_${baseName}`];
 
       // BASE PRIORITY: Sync Booking FIRST because Airbnb iCal often includes imported Booking events
-      // Syncing Booking directly ensures it gets the correct label before Airbnb sync encounters the date
       if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
         try {
-          const added = await syncToGoogleInternal(slug, bookingUrl, 'Booking.com');
+          const added = await syncToGoogleInternal(slug, bookingUrl, 'Booking.com', sessionAddedDates);
           results.push({ slug, source: 'Booking', status: 'success', added });
         } catch (err: any) {
           results.push({ slug, source: 'Booking', status: 'error', message: err.message });
@@ -454,11 +591,19 @@ app.get("/api/sync-calendars", async (req, res) => {
       
       if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
         try {
-          const added = await syncToGoogleInternal(slug, airbnbUrl, 'Airbnb');
+          const added = await syncToGoogleInternal(slug, airbnbUrl, 'Airbnb', sessionAddedDates);
           results.push({ slug, source: 'Airbnb', status: 'success', added });
         } catch (err: any) {
           results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
         }
+      }
+
+      // Also sync site-internal bookings and manual blocks TO Google
+      try {
+        const added = await syncInternalFirestoreToGoogle(slug, sessionAddedDates);
+        results.push({ slug, source: 'Site-Internal', status: 'success', added });
+      } catch (err: any) {
+        console.error(`[Vercel Sync] Firestore -> Google error for ${slug}:`, err.message);
       }
     }
     

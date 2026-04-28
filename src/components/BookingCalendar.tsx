@@ -257,33 +257,38 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-neutral-100 p-2 sm:px-8 sm:py-6 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 mb-4 sm:mb-6 px-4 sm:px-0">
-        <div className="w-10 h-10 bg-neutral-900 rounded-xl flex items-center justify-center">
+    <div className="bg-white rounded-[2rem] border border-neutral-100 p-4 sm:px-8 sm:py-6 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-neutral-900 rounded-xl flex items-center justify-center shrink-0">
           <CalendarIcon className="text-white" size={20} />
         </div>
         <div>
-          <h3 className="text-sm font-black uppercase tracking-widest text-neutral-900">Rezervă Direct</h3>
-          <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">Cel mai bun preț garantat</p>
+          <h3 className="text-[11px] sm:text-sm font-black uppercase tracking-widest text-neutral-900">Rezervă Direct</h3>
+          <p className="text-[9px] sm:text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">Cel mai bun preț garantat</p>
         </div>
       </div>
 
-      <div className="mb-4 sm:mb-6 flex justify-center">
+      <div className="mb-6 flex justify-center">
         <DayPicker
           mode="range"
           selected={range}
           onSelect={setRange}
           disabled={isDateDisabled}
           numberOfMonths={1}
-          className="border-none font-sans max-w-full"
+          className="border-none font-sans !m-0"
           classNames={{
-            selected: "rounded-full",
-            range_start: "rounded-l-full",
-            range_end: "rounded-r-full",
-            range_middle: "rounded-none",
+            month: "space-y-4",
+            selected: "rounded-full !bg-black !text-white",
+            range_start: "rounded-l-full !bg-black !text-white",
+            range_end: "rounded-r-full !bg-black !text-white",
+            range_middle: "!rounded-none !bg-neutral-100 !text-black",
             today: "text-black font-black underline",
-            day: "h-8 w-8 sm:h-9 sm:w-9 text-[10px] sm:text-xs font-bold hover:bg-neutral-100 rounded-full transition-all",
-            head_cell: "text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-neutral-400 pb-2",
+            day: "h-9 w-9 sm:h-10 sm:w-10 p-0 text-[11px] sm:text-xs font-bold hover:bg-neutral-100 rounded-full transition-all flex items-center justify-center",
+            head_cell: "text-[10px] font-black uppercase tracking-wider text-neutral-400 pb-2 w-9 sm:w-10",
+            cell: "p-0",
+            nav: "flex items-center gap-1",
+            table: "w-full border-collapse",
+            months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0"
           }}
         />
       </div>
