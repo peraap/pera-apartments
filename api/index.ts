@@ -251,27 +251,43 @@ const getVercelCalendarId = (slug: string) => {
     'family-standard': 'FAMILIE',
     'apartament-family-deluxe': 'FAMILIE_DELUXE',
     'family-deluxe': 'FAMILIE_DELUXE',
+    'apartament-peraduo': 'PERADUO',
     'peraduo': 'PERADUO',
+    'apartament-peraconfort': 'PERACONFORT',
     'peraconfort': 'PERACONFORT'
   };
 
-  const key = mapping[slug.toLowerCase()];
-  const altKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+  const lowerSlug = slug.toLowerCase();
+  const keyMapped = mapping[lowerSlug];
+  
+  // Try to extract a clean name: "apartament-peraduo" -> "PERADUO"
+  const cleanName = lowerSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+  const rawKey = lowerSlug.replace(/-/g, '_').toUpperCase();
+  const simpleName = lowerSlug.replace('apartament-', '').toUpperCase();
+
+  console.log(`[Vercel Auth] Looking for ID for ${slug}. Keys to try: mapping=${keyMapped}, clean=${cleanName}, simple=${simpleName}, raw=${rawKey}`);
 
   // 1. Check JSON first
   if (process.env.GOOGLE_CALENDAR_IDS_JSON) {
     try {
-      const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON);
-      if (key && idsMap[key]) return idsMap[key];
-      if (idsMap[altKey]) return idsMap[altKey];
-      if (idsMap[slug.toUpperCase()]) return idsMap[slug.toUpperCase()];
-      if (idsMap[slug]) return idsMap[slug];
-    } catch (e) {}
+      const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON.trim());
+      const keysToTry = [keyMapped, cleanName, simpleName, rawKey, lowerSlug.toUpperCase()];
+      
+      for (const k of keysToTry) {
+        if (k && idsMap[k]) {
+          console.log(`[Vercel Auth] ✅ Found in JSON with key: ${k}`);
+          return idsMap[k];
+        }
+      }
+      console.log(`[Vercel Auth] ❌ Key not found in JSON. Available: ${Object.keys(idsMap).join(', ')}`);
+    } catch (e: any) {
+      console.error("[Vercel Auth] JSON Parse Error:", e.message);
+    }
   }
 
   // 2. Check individual variables
-  const keysToTry = [key, altKey, slug.toUpperCase().replace(/-/g, '_'), slug.toUpperCase()].filter(Boolean) as string[];
-  for (const k of keysToTry) {
+  const keysToTryEnv = [keyMapped, cleanName, simpleName, rawKey, lowerSlug.toUpperCase()].filter(Boolean) as string[];
+  for (const k of keysToTryEnv) {
     const val = process.env[`GOOGLE_CALENDAR_ID_${k}`];
     if (val) return val;
   }
@@ -408,7 +424,7 @@ app.get("/api/sync-calendars", async (req, res) => {
     res.json({ 
       status: "Sync attempt finished", 
       results,
-      note: !targetSlug ? "Only synced first apartment to avoid Vercel timeout. Pass ?slug=NAME for others." : "Individual sync sync"
+      note: !targetSlug ? "Only synced first apartment to avoid Vercel timeout. Pass ?slug=NAME for others." : "Individual sync"
     });
   } catch (error: any) {
     console.error(`[Vercel Sync] Critical Error:`, error.message);
