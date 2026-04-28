@@ -6,7 +6,9 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
 import admin from "firebase-admin";
-import { syncExternalIcalToGoogle } from "../google-calendar-service";
+import axios from "axios";
+import icalParser from "node-ical";
+import { google } from "googleapis";
 
 const firebaseConfig = {
   "projectId": "gen-lang-client-0517351691",
@@ -187,6 +189,7 @@ const handleIcalExportInternal = async (req: any, res: any) => {
 };
 
 app.get("/api/health", (req, res) => {
+  const auth = getVercelGoogleAuth();
   res.json({ 
     status: "ok", 
     vercel: true,
@@ -195,9 +198,128 @@ app.get("/api/health", (req, res) => {
     gmailUser: !!process.env.GMAIL_USER,
     gmailPass: !!process.env.GMAIL_APP_PASSWORD,
     adminDbInitialized: !!adminDb,
-    dbInitialized: !!db
+    dbInitialized: !!db,
+    googleAuthInitialized: !!auth, // New check
+    nodeEnv: process.env.NODE_ENV
   });
 });
+
+const getVercelGoogleAuth = () => {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (!email || !privateKey) return null;
+
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  privateKey = privateKey.trim();
+  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+    privateKey = privateKey.substring(1, privateKey.length - 1);
+  }
+
+  try {
+    return new google.auth.JWT({
+      email,
+      key: privateKey,
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    });
+  } catch (err) {
+    return null;
+  }
+};
+
+const getVercelCalendarId = (slug: string) => {
+  const mapping: Record<string, string> = {
+    'apartament-premium-king': 'KING',
+    'premium-king': 'KING',
+    'apartament-deluxe-double': 'DUBLA_DELUXE',
+    'deluxe-double': 'DUBLA_DELUXE',
+    'apartament-family-standard': 'FAMILIE',
+    'family-standard': 'FAMILIE',
+    'apartament-family-deluxe': 'FAMILIE_DELUXE',
+    'family-deluxe': 'FAMILIE_DELUXE',
+    'peraduo': 'PERADUO',
+    'peraconfort': 'PERACONFORT'
+  };
+  const key = mapping[slug.toLowerCase()];
+  const altKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+
+  if (process.env.GOOGLE_CALENDAR_IDS_JSON) {
+    try {
+      const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON);
+      if (key && idsMap[key]) return idsMap[key];
+      if (idsMap[altKey]) return idsMap[altKey];
+    } catch (e) {}
+  }
+  return process.env[`GOOGLE_CALENDAR_ID_${key || altKey}`] || 'primary';
+};
+
+async function syncToGoogleInternal(slug: string, url: string, sourceName: string) {
+  const auth = getVercelGoogleAuth();
+  if (!auth) throw new Error("Auth initialization failed");
+  
+  const calendar = google.calendar({ version: 'v3', auth });
+  const calendarId = getVercelCalendarId(slug);
+  if (calendarId === 'primary') throw new Error(`Specific calendar ID not found for ${slug}`);
+
+  const response = await axios.get(url, { timeout: 10000 });
+  const data = icalParser.parseICS(response.data);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const res = await calendar.events.list({
+    calendarId,
+    timeMin: today.toISOString(),
+    singleEvents: true,
+    maxResults: 100
+  });
+  
+  const existingEvents = res.data.items || [];
+  const existingKeys = new Set();
+  existingEvents.forEach((e: any) => {
+    const uidMatch = e.description?.match(/UID iCal: (.+)/);
+    if (uidMatch) existingKeys.add(uidMatch[1].trim());
+    const start = e.start?.date || (e.start?.dateTime ? e.start.dateTime.split('T')[0] : '');
+    const end = e.end?.date || (e.end?.dateTime ? e.end.dateTime.split('T')[0] : '');
+    existingKeys.add(`${e.summary?.toLowerCase()}-${start}-${end}`);
+  });
+
+  let added = 0;
+  for (const k in data) {
+    const ev = data[k];
+    if (ev.type === 'VEVENT' && ev.start && ev.end) {
+      const start = new Date(ev.start);
+      const end = new Date(ev.end);
+      if (end < today) continue;
+
+      const startDateStr = start.toISOString().split('T')[0];
+      const endDateStr = end.toISOString().split('T')[0];
+      const summary = `${sourceName}: Rezervare`;
+      const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
+      const uid = (ev.uid || `${eventKey}-${k}`).toString().trim();
+
+      if (!existingKeys.has(uid) && !existingKeys.has(eventKey)) {
+        await calendar.events.insert({
+          calendarId,
+          requestBody: {
+            summary,
+            description: `Sincronizat automat din ${sourceName}.\nUID iCal: ${uid}`,
+            start: { date: startDateStr },
+            end: { date: endDateStr },
+            transparency: 'opaque',
+            colorId: sourceName === 'Airbnb' ? '11' : '1',
+          }
+        });
+        existingKeys.add(uid);
+        existingKeys.add(eventKey);
+        added++;
+        if (added >= 5) break; // Safety limit for Vercel
+      }
+    }
+  }
+  return added;
+}
 
 app.get("/api/sync-calendars", async (req, res) => {
   const targetSlug = req.query.slug as string;
@@ -231,9 +353,10 @@ app.get("/api/sync-calendars", async (req, res) => {
       if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
         console.log(`[Vercel Sync] Found Booking URL for ${slug}`);
         try {
-          await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-          results.push({ slug, source: 'Booking', status: 'success' });
+          const added = await syncToGoogleInternal(slug, bookingUrl, 'Booking.com');
+          results.push({ slug, source: 'Booking', status: 'success', added });
         } catch (err: any) {
+          console.error(`[Vercel Sync] Error Booking ${slug}:`, err.message);
           results.push({ slug, source: 'Booking', status: 'error', message: err.message });
         }
       }
@@ -241,9 +364,10 @@ app.get("/api/sync-calendars", async (req, res) => {
       if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
         console.log(`[Vercel Sync] Found Airbnb URL for ${slug}`);
         try {
-          await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-          results.push({ slug, source: 'Airbnb', status: 'success' });
+          const added = await syncToGoogleInternal(slug, airbnbUrl, 'Airbnb');
+          results.push({ slug, source: 'Airbnb', status: 'success', added });
         } catch (err: any) {
+          console.error(`[Vercel Sync] Error Airbnb ${slug}:`, err.message);
           results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
         }
       }
