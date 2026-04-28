@@ -66,7 +66,8 @@ async function startServer() {
     // Enable by default as requested, but allow override via env
     const isMaintenance = process.env.MAINTENANCE_MODE !== 'false'; 
     const isPublicApi = req.path.startsWith('/api/health') || 
-                        req.path.includes('export-ical');
+                        req.path.includes('export-ical') ||
+                        req.path.includes('api/ical');
     
     if (isMaintenance && !isPublicApi) {
       if (req.path.startsWith('/api/')) {
@@ -212,16 +213,23 @@ async function startServer() {
     res.json({ 
       status: "ok", 
       env: process.env.NODE_ENV,
-      dbInitialized: !!db
+      dbInitialized: !!db,
+      adminDbInitialized: !!adminDb,
+      stripeKey: !!process.env.STRIPE_SECRET_KEY,
+      gmailUser: !!process.env.GMAIL_USER,
+      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
     });
   });
 
+  app.get("/api/ical/:slug", handleIcalExport);
+  app.get("/api/ical*", handleIcalExport);
   app.get("/api/export-ical/:slug", handleIcalExport);
   app.get("/api/export-ical*", handleIcalExport);
   app.get("/export-ical/:slug", handleIcalExport);
   app.get("/export-ical*", handleIcalExport);
 
-  // 1. CORS & JSON Parsing
+  // 1. CORS & JSON Parsing (Moved up to ensure all routes benefit)
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -574,18 +582,6 @@ async function startServer() {
       console.error("Error sending manual confirmation:", error);
       res.status(500).json({ error: error.message });
     }
-  });
-
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      env: process.env.NODE_ENV,
-      stripeKey: !!process.env.STRIPE_SECRET_KEY,
-      gmailUser: !!process.env.GMAIL_USER,
-      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-      dbInitialized: !!db
-    });
   });
 
   // 3. VITE / STATIC FILES (Must be after API)

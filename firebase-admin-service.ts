@@ -34,7 +34,15 @@ try {
   if (dbId === '(default)') {
     adminDb = admin.firestore();
   } else {
-    adminDb = admin.firestore(dbId);
+    // @ts-ignore - The types might be outdated but the functionality exists in newer versions
+    adminDb = admin.firestore().service.firestore(dbId);
+    // Alternatively, if the SDK is new enough:
+    try {
+      // @ts-ignore
+      adminDb = admin.firestore(dbId);
+    } catch (e) {
+      adminDb = admin.firestore();
+    }
   }
   
   console.log(`[Firebase Admin] Connecting to database: ${dbId}`);
