@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, isBefore, isAfter, startOfDay, eachDayOfInterval, isWithinInterval, differenceInDays, parseISO } from 'date-fns';
+import { ro } from 'date-fns/locale';
 import { DayPicker, DateRange } from 'react-day-picker';
 import 'react-day-picker/style.css';
 import { Calendar as CalendarIcon, CreditCard, Loader2, Info, ArrowRight, Tag, Check, ChevronDown } from 'lucide-react';
@@ -73,7 +74,39 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         dates.push(...interval);
       });
 
-      // 2. Fetch external bookings from iCal (Airbnb/Booking.com) via our API
+      // 1b. Fetch universal blocks (all apartments)
+      const qAll = query(
+        collection(db, 'blocks'),
+        where('apartmentId', 'in', ['all', 'toate'])
+      );
+      const allSnapshot = await getDocs(qAll);
+      allSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.startDate && data.endDate) {
+          const interval = eachDayOfInterval({ 
+            start: new Date(data.startDate), 
+            end: new Date(data.endDate) 
+          });
+          dates.push(...interval);
+        }
+      });
+
+      // 1c. Fetch specific manual blocks
+      const qSpecific = query(
+        collection(db, 'blocks'),
+        where('apartmentId', '==', apartmentId)
+      );
+      const specificSnapshot = await getDocs(qSpecific);
+      specificSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.startDate && data.endDate) {
+          const interval = eachDayOfInterval({ 
+            start: new Date(data.startDate), 
+            end: new Date(data.endDate) 
+          });
+          dates.push(...interval);
+        }
+      });
       try {
         const response = await fetch(`/api/blocked-dates/${slug}`);
         if (response.ok) {
@@ -96,10 +129,10 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
     }
   };
 
+  const disabledDays = bookedDates.map(d => format(d, 'yyyy-MM-dd'));
+
   const isDateDisabled = (date: Date) => {
-    return isBefore(date, startOfDay(new Date())) || bookedDates.some(bookedDate => 
-      format(bookedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-    );
+    return isBefore(date, startOfDay(new Date())) || disabledDays.includes(format(date, 'yyyy-MM-dd'));
   };
 
   const calculateNights = () => {
@@ -281,27 +314,29 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
           onSelect={setRange}
           disabled={isDateDisabled}
           numberOfMonths={1}
+          locale={ro}
           className="w-full"
           classNames={{
+            months: "w-full",
             month: "w-full space-y-6",
-            month_caption: "flex justify-center pt-1 relative items-center mb-8",
-            caption_label: "text-sm font-black uppercase tracking-[0.3em] text-neutral-900",
-            nav: "flex items-center gap-2",
-            button_previous: "absolute left-0 h-10 w-10 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 z-10 hover:scale-105 active:scale-95",
-            button_next: "absolute right-0 h-10 w-10 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 z-10 hover:scale-105 active:scale-95",
+            month_caption: "flex justify-center pt-2 relative items-center mb-10 min-h-10",
+            caption_label: "text-lg font-black uppercase tracking-[0.4em] text-neutral-900 border-b-2 border-neutral-900 pb-1 px-6 z-10",
+            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-10 px-2 z-30",
+            button_previous: "h-10 w-10 bg-white hover:bg-neutral-50 rounded-xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-10 cursor-pointer shadow-sm pointer-events-auto",
+            button_next: "h-10 w-10 bg-white hover:bg-neutral-50 rounded-xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-10 cursor-pointer shadow-sm pointer-events-auto",
             month_grid: "w-full border-collapse",
             weekdays: "flex w-full mb-4",
-            weekday: "text-neutral-400 font-black uppercase tracking-widest text-[10px] flex-1 text-center",
-            week: "flex w-full mt-0.5",
-            day: "relative flex-1 aspect-square p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center rounded-xl hover:bg-neutral-50 cursor-pointer overflow-hidden m-0.5",
+            weekday: "text-neutral-300 font-black uppercase tracking-widest text-[10px] flex-1 text-center font-sans",
+            week: "flex w-full mt-2",
+            day: "relative flex-1 aspect-square p-0 text-center flex items-center justify-center",
+            day_button: "h-[90%] w-[90%] p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center rounded-xl hover:bg-neutral-50 cursor-pointer m-0 border-0 outline-none",
             selected: "!bg-black !text-white rounded-xl shadow-lg shadow-black/10",
             range_start: "!bg-black !text-white rounded-xl",
             range_end: "!bg-black !text-white rounded-xl",
-            range_middle: "!bg-black/5 !text-black !rounded-none !m-0",
+            range_middle: "!bg-neutral-900 !text-white !rounded-none !opacity-80",
             today: "text-black border-2 border-neutral-900/10 font-black",
-            disabled: "text-neutral-200 line-through opacity-40 cursor-not-allowed hover:bg-transparent",
+            disabled: "text-neutral-200 line-through opacity-30 cursor-not-allowed hover:bg-transparent",
             outside: "invisible",
-            day_button: "w-full h-full flex items-center justify-center outline-none",
           }}
         />
       </div>

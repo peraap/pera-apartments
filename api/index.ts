@@ -162,7 +162,7 @@ const handleIcalExportInternal = async (req: any, res: any) => {
             start: new Date(booking.checkIn),
             end: new Date(booking.checkOut),
             allDay: true,
-            summary: 'Rezervare Site (Pera Apartments)',
+            summary: 'Site Rezervare',
             description: `Oaspete: ${booking.guestName}`,
             busystatus: ICalEventBusyStatus.BUSY
           });
@@ -186,7 +186,7 @@ const handleIcalExportInternal = async (req: any, res: any) => {
             start: new Date(block.startDate),
             end: new Date(block.endDate),
             allDay: true,
-            summary: block.reason || 'Blocat (Pera Apartments)',
+            summary: block.reason || 'Site Blocat',
             description: 'Blocare manuală din panoul de administrare.',
             busystatus: ICalEventBusyStatus.BUSY
           });
@@ -432,23 +432,36 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
       // If we are syncing Airbnb, but it contains Booking.com or other external reservations
       if (sourceName === 'Airbnb') {
         // Pattern 1: Explicit labels
-        const isBookingSearch = icalSummary.includes('booking.com') || icalDescription.includes('booking.com') || icalSummary.includes('booking-') || icalSummary.startsWith('booking');
+        const isBookingSearch = icalSummary.includes('booking.com') || icalDescription.includes('booking.com') || icalSummary.includes('booking-') || icalSummary.startsWith('booking') || icalSummary.includes('reservation - booking') || icalSummary.includes('b.com');
         const isExpediaSearch = icalSummary.includes('expedia') || icalDescription.includes('expedia');
         
         // Pattern 2: Airbnb often shows imported events simply as "Reserved" (summary) with no "Airbnb" in it
         // real Airbnb events usually have "Airbnb (Not available)" or "Reservation (Person Name)"
+        // If it starts with "Reservation" but doesn't mention Airbnb, it's likely Booking
+        const isLikelyBooking = (icalSummary.startsWith('reservation') && !icalDescription.includes('airbnb')) || (icalSummary === 'reserved' && !icalDescription.includes('airbnb'));
         const isGenericReserved = (icalSummary === 'reserved' || icalSummary === 'unavailable') && !icalDescription.includes('airbnb');
+        const isExpediaLabel = icalSummary.includes('expedia') || icalDescription.includes('expedia');
 
-        if (isBookingSearch) {
-          effectiveSource = 'Booking.com';
-        } else if (isExpediaSearch) {
+        if (isBookingSearch || isLikelyBooking) {
+          effectiveSource = 'Booking';
+        } else if (isExpediaSearch || isExpediaLabel) {
           effectiveSource = 'Expedia';
-        } else if (isGenericReserved) {
-          effectiveSource = 'Sync (Ext)';
+        } else if (icalSummary.includes('airbnb') || icalDescription.includes('airbnb')) {
+          effectiveSource = 'Airbnb';
+        } else {
+          effectiveSource = 'Airbnb'; // Default to Airbnb if we're scanning an Airbnb feed
         }
+      } else if (sourceName.toLowerCase().includes('booking')) {
+        effectiveSource = 'Booking';
+      } else if (sourceName.toLowerCase().includes('airbnb')) {
+        effectiveSource = 'Airbnb';
       }
 
-      const summary = `${effectiveSource}: Rezervare`;
+      let summary = `${effectiveSource} Rezervare`;
+      if (icalSummary.includes('closed') || icalSummary.includes('blocked') || icalSummary.includes('blocat') || icalSummary.includes('inchis') || icalSummary.includes('unavailable') || icalSummary.includes('not available')) {
+        summary = `${effectiveSource} Blocat`;
+      }
+      
       const eventKey = `${summary.toLowerCase()}-${startDateStr}-${endDateStr}`;
       const dateKey = `${startDateStr}-${endDateStr}`;
       const uid = (ev.uid || `${eventKey}-${k}`).toString().trim();
@@ -465,14 +478,14 @@ async function syncToGoogleInternal(slug: string, url: string, sourceName: strin
             start: { date: startDateStr },
             end: { date: endDateStr },
             transparency: 'opaque',
-            colorId: effectiveSource === 'Airbnb' ? '11' : (effectiveSource.includes('External') ? '8' : '1'),
+            colorId: effectiveSource === 'Airbnb' ? '11' : (effectiveSource.includes('Extern') || effectiveSource.includes('Sync') ? '8' : '1'),
           }
         });
         existingKeys.add(uid);
         existingKeys.add(eventKey);
         if (sessionDates) sessionDates.add(`${slug}-${dateKey}`);
         added++;
-        if (added >= 5) break; // Safety limit for Vercel
+        if (added >= 100) break; // Safety limit for Vercel
       }
     }
   }
@@ -516,10 +529,11 @@ async function syncInternalFirestoreToGoogle(slug: string, sessionDates: Set<str
   for (const docObj of blocksSnap.docs) {
     const b = docObj.data();
     const aptId = (b.apartmentId || '').toLowerCase();
-    if (aptId === normalizedSlug && b.startDate && b.endDate) {
+    const isUniversal = aptId === 'all' || aptId === 'toate';
+    if ((aptId === normalizedSlug || isUniversal) && b.startDate && b.endDate) {
       const startStr = b.startDate.split('T')[0];
       const endStr = b.endDate.split('T')[0];
-      const summary = b.reason || 'Sărbătoare / Blocat Manual';
+      const summary = b.reason ? `ÎNCHIS: ${b.reason}` : 'ÎNCHIS / BLOCAT ADMIN';
       const eventKey = `${summary.toLowerCase()}-${startStr}-${endStr}`;
       const dateKey = `${startStr}-${endStr}`;
 
@@ -549,7 +563,7 @@ async function syncInternalFirestoreToGoogle(slug: string, sessionDates: Set<str
     if (aptId === normalizedSlug && b.checkIn && b.checkOut) {
       const startStr = b.checkIn;
       const endStr = b.checkOut;
-      const summary = `Site: ${b.guestName || 'Rezervare'}`;
+      const summary = `Site Rezervare`;
       const eventKey = `${summary.toLowerCase()}-${startStr}-${endStr}`;
       const dateKey = `${startStr}-${endStr}`;
 
