@@ -315,7 +315,7 @@ async function startServer() {
           apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
         }
       } catch (e) {
-        console.error("[Sync] Error fetching apartments from DB:", e);
+        console.error("[Sync] DB Fetch Error:", e);
       }
 
       const masterList = [
@@ -327,84 +327,95 @@ async function startServer() {
         'peraconfort'
       ];
 
-      // Use a Set to ensure unique slugs, preserving the master list order, all normalized to lowercase
-      const allSlugs = [...masterList, ...apartmentsInDb].map(s => s.toLowerCase().trim()).filter(Boolean);
-      const apartments = Array.from(new Set(allSlugs));
+      // Normalize all slugs to lowercase and ensure uniqueness
+      const allSlugs = Array.from(new Set([
+        ...masterList,
+        ...apartmentsInDb.map(s => s.toLowerCase().trim())
+      ])).filter(Boolean);
 
-      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : apartments;
-      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms: ${syncApartments.join(', ')}`);
+      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
+      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms`);
 
-      // Process rooms in batches or parallel
-      const allResults = await Promise.all(syncApartments.map(async (slug) => {
+      const finalResults: any[] = [];
+
+      // Sequential processing to be more robust
+      for (const slug of syncApartments) {
         const normalizedSlug = slug.toLowerCase().trim();
         const roomResults: any[] = [];
         
-        // Find links in environment variables
-        // We try multiple naming conventions to be very flexible
-        const keysToTry = [
-          normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
-          normalizedSlug.replace(/-/g, '_').toUpperCase(),
-          normalizedSlug.toUpperCase(),
-          normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase()
-        ];
-        
-        const mapping: Record<string, string> = {
-          'apartament-premium-king': 'PREMIUM_KING',
-          'apartament-deluxe-double': 'DELUXE_DOUBLE',
-          'apartament-family-standard': 'FAMILY_STANDARD',
-          'apartament-family-deluxe': 'FAMILY_DELUXE',
-          'peraduo': 'PERADUO',
-          'peraconfort': 'PERACONFORT'
-        };
-        
-        if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
+        try {
+          // Find links in environment variables
+          const keysToTry = [
+            normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
+            normalizedSlug.replace(/-/g, '_').toUpperCase(),
+            normalizedSlug.toUpperCase(),
+            normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase()
+          ];
+          
+          const mapping: Record<string, string> = {
+            'apartament-premium-king': 'PREMIUM_KING',
+            'apartament-deluxe-double': 'DELUXE_DOUBLE',
+            'apartament-family-standard': 'FAMILY_STANDARD',
+            'apartament-family-deluxe': 'FAMILY_DELUXE',
+            'peraduo': 'PERADUO',
+            'peraconfort': 'PERACONFORT',
+            'premium-king': 'PREMIUM_KING',
+            'deluxe-double': 'DELUXE_DOUBLE',
+            'family-standard': 'FAMILY_STANDARD',
+            'family-deluxe': 'FAMILY_DELUXE'
+          };
+          
+          if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
 
-        let bookingUrl = '';
-        let airbnbUrl = '';
+          let bookingUrl = '';
+          let airbnbUrl = '';
 
-        for (const k of keysToTry) {
-          if (!bookingUrl) bookingUrl = process.env[`ICAL_BOOKING_${k}`] || '';
-          if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
-        }
-
-        // Booking Sync
-        if (!targetSource || targetSource.toLowerCase() === 'booking') {
-          if (bookingUrl) {
-            try {
-              await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-              roomResults.push({ slug, source: 'Booking', status: 'success' });
-            } catch (err: any) {
-              roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
-            }
-          } else {
-            roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'Configurare lipsă (ICAL_BOOKING_...)' });
+          for (const k of keysToTry) {
+            if (!bookingUrl) bookingUrl = process.env[`ICAL_BOOKING_${k}`] || '';
+            if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
           }
+
+          // Booking Sync
+          if (!targetSource || targetSource.toLowerCase() === 'booking') {
+            if (bookingUrl) {
+              try {
+                await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+                roomResults.push({ slug, source: 'Booking', status: 'success' });
+              } catch (err: any) {
+                console.error(`[Sync] Booking Error for ${slug}:`, err.message);
+                roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
+              }
+            } else {
+              roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'Configurare lipsă' });
+            }
+          }
+          
+          // Airbnb Sync 
+          const shouldHaveAirbnb = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
+          if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
+            if (airbnbUrl) {
+              try {
+                await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+                roomResults.push({ slug, source: 'Airbnb', status: 'success' });
+              } catch (err: any) {
+                console.error(`[Sync] Airbnb Error for ${slug}:`, err.message);
+                roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+              }
+            } else if (shouldHaveAirbnb) {
+              roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'Configurare lipsă' });
+            }
+          }
+
+          if (roomResults.length === 0) {
+            roomResults.push({ slug, source: 'Verificare', status: 'skipped', message: 'Nicio sursă găsită' });
+          }
+        } catch (roomError: any) {
+          console.error(`[Sync] Critical error for ${slug}:`, roomError.message);
+          roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
         }
         
-        // Airbnb Sync 
-        const shouldHaveAirbnb = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
-        if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
-          if (airbnbUrl) {
-            try {
-              await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-              roomResults.push({ slug, source: 'Airbnb', status: 'success' });
-            } catch (err: any) {
-              roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
-            }
-          } else if (shouldHaveAirbnb) {
-            roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'Configurare lipsă (ICAL_AIRBNB_...)' });
-          }
-        }
-
-        // Ensure we always return something for this slug
-        if (roomResults.length === 0) {
-          roomResults.push({ slug, source: 'Verificare', status: 'skipped', message: 'Nu s-au găsit surse configurate pentru acest apartament.' });
-        }
-
-        return roomResults;
-      }));
-
-      const finalResults = allResults.flat();
+        finalResults.push(...roomResults);
+      }
       
       res.json({ 
         status: "Sync completed", 
