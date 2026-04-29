@@ -70,8 +70,12 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         const data = doc.data();
         const start = new Date(data.checkIn);
         const end = new Date(data.checkOut);
-        const interval = eachDayOfInterval({ start, end });
-        dates.push(...interval);
+        // A booking from 1st to 5th means nights of 1, 2, 3, 4 are taken. 
+        // 5th is check-out and free for next check-in.
+        if (isBefore(start, end)) {
+          const interval = eachDayOfInterval({ start, end: addDays(end, -1) });
+          dates.push(...interval);
+        }
       });
 
       // 1b. Fetch universal blocks (all apartments)
@@ -83,9 +87,11 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
       allSnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.startDate && data.endDate) {
+          const start = new Date(data.startDate);
+          const end = new Date(data.endDate);
           const interval = eachDayOfInterval({ 
-            start: new Date(data.startDate), 
-            end: new Date(data.endDate) 
+            start, 
+            end: addDays(end, -1) 
           });
           dates.push(...interval);
         }
@@ -100,9 +106,11 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
       specificSnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.startDate && data.endDate) {
+          const start = new Date(data.startDate);
+          const end = new Date(data.endDate);
           const interval = eachDayOfInterval({ 
-            start: new Date(data.startDate), 
-            end: new Date(data.endDate) 
+            start, 
+            end: addDays(end, -1) 
           });
           dates.push(...interval);
         }
@@ -133,6 +141,25 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
 
   const isDateDisabled = (date: Date) => {
     return isBefore(date, startOfDay(new Date())) || disabledDays.includes(format(date, 'yyyy-MM-dd'));
+  };
+
+  const handleRangeSelect = (newRange: DateRange | undefined) => {
+    if (newRange?.from && newRange?.to) {
+      // Check if any day in the range (excluding the last day) is disabled
+      const stayInterval = eachDayOfInterval({ 
+        start: startOfDay(newRange.from), 
+        end: addDays(startOfDay(newRange.to), -1) 
+      });
+      
+      const hasConflict = stayInterval.some(date => isDateDisabled(date));
+      
+      if (hasConflict) {
+        toast.error('Perioada selectată conține zile deja rezervate.');
+        setRange(undefined);
+        return;
+      }
+    }
+    setRange(newRange);
   };
 
   const calculateNights = () => {
@@ -170,6 +197,12 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   };
 
   const handleBooking = async () => {
+    if (checkingAvailability) {
+      toast.info('Încă verificăm disponibilitatea. Te rugăm să aștepți o secundă.');
+      return;
+    }
+    
+    console.log('handleBooking triggered');
     if (!range?.from || !range?.to) {
       toast.error('Te rugăm să selectezi perioada rezervării.');
       return;
@@ -195,32 +228,31 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
     console.log('Starting booking process for:', apartmentName);
     
     try {
-      // 1. Final availability check
-      console.log('Checking availability...');
-      const q = query(
-        collection(db, 'bookings'),
-        where('apartmentId', '==', apartmentId),
-        where('status', 'in', ['confirmed', 'pending'])
-      );
-      const querySnapshot = await getDocs(q);
-      let isOverlap = false;
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const existingStart = new Date(data.checkIn);
-        const existingEnd = new Date(data.checkOut);
-        
-        if (
-          isWithinInterval(range.from!, { start: existingStart, end: existingEnd }) ||
-          isWithinInterval(range.to!, { start: existingStart, end: existingEnd }) ||
-          (isBefore(range.from!, existingStart) && isAfter(range.to!, existingEnd))
-        ) {
-          isOverlap = true;
-        }
+      // 1. Final availability check across the entire selected interval
+      console.log('Checking availability for interval...');
+      
+      // Get all days in the requested stay
+      // Note: we check up until the day BEFORE check-out, as check-out day is usually available for a new check-in
+      const checkIn = startOfDay(range.from);
+      const checkOut = startOfDay(range.to);
+      
+      // Basic check: at least 1 night
+      if (isBefore(checkOut, addDays(checkIn, 1)) && format(checkIn, 'yyyy-MM-dd') === format(checkOut, 'yyyy-MM-dd')) {
+        toast.error('Perioada rezervării trebuie să fie de minim o noapte.');
+        setLoading(false);
+        return;
+      }
+
+      const stayInterval = eachDayOfInterval({ 
+        start: checkIn, 
+        end: addDays(checkOut, -1) // Usually check-out day is available for next guest
       });
 
-      if (isOverlap) {
-        console.warn('Overlap detected');
-        toast.error('Din păcate, perioada selectată s-a ocupat între timp.');
+      const hasConflict = stayInterval.some(date => isDateDisabled(date));
+
+      if (hasConflict) {
+        console.warn('Conflict detected in stay interval');
+        toast.error('Din păcate, una sau mai multe zile din perioada selectată sunt indisponibile.');
         fetchBookedDates();
         setLoading(false);
         return;
@@ -311,25 +343,25 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
         <DayPicker
           mode="range"
           selected={range}
-          onSelect={setRange}
+          onSelect={handleRangeSelect}
           disabled={isDateDisabled}
           numberOfMonths={1}
           locale={ro}
           className="w-full"
           classNames={{
-            months: "w-full",
+            months: "w-full relative px-1",
             month: "w-full space-y-6",
-            month_caption: "flex justify-center pt-2 relative items-center mb-10 min-h-10",
-            caption_label: "text-lg font-black uppercase tracking-[0.4em] text-neutral-900 border-b-2 border-neutral-900 pb-1 px-6 z-10",
-            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-10 px-2 z-30",
-            button_previous: "h-10 w-10 bg-white hover:bg-neutral-50 rounded-xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-10 cursor-pointer shadow-sm pointer-events-auto",
-            button_next: "h-10 w-10 bg-white hover:bg-neutral-50 rounded-xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-10 cursor-pointer shadow-sm pointer-events-auto",
+            month_caption: "flex justify-center pt-2 relative items-center mb-10 min-h-12",
+            caption_label: "text-lg font-black uppercase tracking-[0.3em] text-neutral-900 border-b-2 border-neutral-900 pb-1 px-4 z-10",
+            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-12 z-40 pointer-events-none",
+            button_previous: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md pointer-events-auto",
+            button_next: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md pointer-events-auto",
             month_grid: "w-full border-collapse",
             weekdays: "flex w-full mb-4",
             weekday: "text-neutral-300 font-black uppercase tracking-widest text-[10px] flex-1 text-center font-sans",
             week: "flex w-full mt-2",
             day: "relative flex-1 aspect-square p-0 text-center flex items-center justify-center",
-            day_button: "h-[90%] w-[90%] p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center rounded-xl hover:bg-neutral-50 cursor-pointer m-0 border-0 outline-none",
+            day_button: "h-[92%] w-[92%] p-0 font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center rounded-xl hover:bg-neutral-50 cursor-pointer m-0 border-0 outline-none",
             selected: "!bg-black !text-white rounded-xl shadow-lg shadow-black/10",
             range_start: "!bg-black !text-white rounded-xl",
             range_end: "!bg-black !text-white rounded-xl",
@@ -439,11 +471,20 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
 
       <button
         onClick={handleBooking}
-        disabled={loading || checkingAvailability || !range?.from || !range?.to || (selectedOffer && !offerConditionMet(selectedOffer))}
-        className="w-full bg-black text-white py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] hover:bg-neutral-800 hover:scale-[1.01] transition-all shadow-xl shadow-black/20 flex items-center justify-center gap-3 disabled:opacity-50 active:scale-[0.98]"
+        disabled={loading || (selectedOffer && !offerConditionMet(selectedOffer))}
+        className={`w-full py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] ${
+          !range?.from || !range?.to 
+            ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
+            : 'bg-black text-white hover:bg-neutral-800 hover:scale-[1.01] shadow-black/20'
+        }`}
       >
         {loading ? (
           <Loader2 className="animate-spin" size={18} />
+        ) : !range?.from || !range?.to ? (
+          <>
+            <CalendarIcon size={18} />
+            Alege Perioada
+          </>
         ) : (
           <>
             <CreditCard size={18} />
