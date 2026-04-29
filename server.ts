@@ -334,7 +334,7 @@ async function startServer() {
       ])).filter(Boolean);
 
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
-      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms`);
+      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms. Slugs: ${syncApartments.join(', ')}`);
 
       const finalResults: any[] = [];
 

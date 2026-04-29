@@ -361,14 +361,30 @@ const SyncInfo = ({ apartments: dbApartments }: { apartments: Apartment[] }) => 
     { name: "Pera Confort", slug: "peraconfort" },
   ];
 
-  // Merge lists to ensure we show at least the standard ones
-  const allSlugs = new Set(dbApartments.map(a => a.slug));
-  const displayList = [...dbApartments];
+  // Merge lists to ensure we show all rooms even if they aren't in Firestore yet
+  const dbSlugs = new Set(dbApartments.map(a => a.slug));
+  const finalDisplayList = [...dbApartments];
   
   masterList.forEach(m => {
-    if (!allSlugs.has(m.slug)) {
-      displayList.push({ id: m.slug, name: m.name, slug: m.slug } as Apartment);
+    if (!dbSlugs.has(m.slug)) {
+      finalDisplayList.push({ 
+        id: `virtual-${m.slug}`, 
+        name: m.name, 
+        slug: m.slug,
+        images: ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=800'],
+        location: 'Cristian, Brașov'
+      } as Apartment);
     }
+  });
+
+  // Sort display list according to master list order if possible
+  const sortedDisplay = [...finalDisplayList].sort((a, b) => {
+    const idxA = masterList.findIndex(m => m.slug === a.slug);
+    const idxB = masterList.findIndex(m => m.slug === b.slug);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.name.localeCompare(b.name);
   });
 
   return (
@@ -378,21 +394,26 @@ const SyncInfo = ({ apartments: dbApartments }: { apartments: Apartment[] }) => 
           <RefreshCw className="text-blue-500" size={20} />
           Sincronizare Calendare (iCal Export)
         </h3>
-        <p className="text-sm text-blue-800 mb-4">
-          Copiați aceste link-uri și adăugați-le în Airbnb sau Booking.com la secțiunea "Import Calendar" pentru a sincroniza rezervările de pe site.
+        <p className="text-sm text-blue-800 mb-4 font-medium">
+          IMPORTANT: Aceste link-uri permit Airbnb și Booking.com să vadă rezervările făcute direct pe site.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayList.map(apt => (
-            <div key={apt.id} className="bg-white p-4 rounded-2xl shadow-sm border border-blue-200/50">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">{apt.name}</span>
-              <div className="flex flex-col space-y-2">
-                <div className="flex justify-between items-center text-[8px] text-neutral-400 uppercase tracking-tighter">
-                  <span>Slug: {apt.slug}</span>
-                  <span className="text-blue-400 font-bold italic">Activ</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedDisplay.map(apt => (
+            <div key={apt.id} className="bg-white p-5 rounded-2xl shadow-sm border border-blue-200/50 hover:border-blue-400 transition-colors">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-neutral-800 block">{apt.name}</span>
+                <span className="text-[9px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">ACTIV</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[9px] text-neutral-400 uppercase font-bold block mb-1">Link Export iCal (pentru Airbnb/Booking)</label>
+                  <code className="text-[10px] text-blue-600 break-all bg-blue-50 px-3 py-2 rounded-xl block select-all border border-blue-100/50">
+                    {`${baseUrl}/api/export-ical/${apt.slug}.ics`}
+                  </code>
                 </div>
-                <code className="text-[10px] text-blue-600 break-all bg-blue-50 px-2 py-1 rounded block select-all">
-                  {`${baseUrl}/api/export-ical/${apt.slug}.ics`}
-                </code>
+                <div className="text-[9px] text-neutral-400">
+                  ID: <span className="font-mono">{apt.slug}</span>
+                </div>
               </div>
             </div>
           ))}
@@ -479,22 +500,27 @@ const Dashboard = () => {
             <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400">Rezultate Sincronizare</h4>
             <button onClick={() => setSyncResults(null)} className="text-neutral-500 hover:text-white"><X size={14} /></button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {syncResults.map((res, idx) => (
-              <div key={idx} className="flex justify-between items-center py-2 border-b border-neutral-800 last:border-0">
-                <div className="text-[10px]">
-                  <span className="text-neutral-400 block uppercase tracking-tighter">{res.slug}</span>
-                  <span className="font-bold">{res.source || 'General'}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                    res.status === 'success' ? 'bg-green-500/20 text-green-400' : 
-                    res.status === 'skipped' ? 'bg-amber-500/20 text-amber-400' :
-                    'bg-red-500/20 text-red-400'
+              <div key={idx} className="bg-neutral-800 p-4 rounded-2xl border border-neutral-700">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="text-[10px]">
+                    <span className="text-neutral-400 block uppercase tracking-tighter font-bold">{res.slug}</span>
+                    <span className="font-bold text-blue-400">{res.source || 'General'}</span>
+                  </div>
+                  <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
+                    res.status === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 
+                    res.status === 'skipped' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                    'bg-red-500/20 text-red-400 border border-red-500/30'
                   }`}>
-                    {res.status === 'skipped' ? `${res.status}: ${res.message}` : res.status}
+                    {res.status}
                   </span>
                 </div>
+                {res.message && (
+                  <p className="text-[9px] text-neutral-300 bg-black/30 p-2 rounded-lg border border-neutral-700/50 italic">
+                    {res.message}
+                  </p>
+                )}
               </div>
             ))}
           </div>
