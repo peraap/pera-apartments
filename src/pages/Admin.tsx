@@ -396,6 +396,7 @@ const Dashboard = () => {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncResults, setSyncResults] = useState<any[] | null>(null);
 
   useEffect(() => {
     const qB = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
@@ -419,11 +420,12 @@ const Dashboard = () => {
 
   const handleFullSync = async () => {
     setSyncing(true);
+    setSyncResults(null);
     try {
       const response = await fetch('/api/sync-calendars');
       const data = await response.json();
-      toast.success("Sincronizare finalizată cu succes!");
-      console.log("Sync results:", data.results);
+      setSyncResults(data.results || []);
+      toast.success("Sincronizare finalizată!");
     } catch (e) {
       toast.error("Eroare la sincronizare.");
     } finally {
@@ -455,6 +457,36 @@ const Dashboard = () => {
           <span>{syncing ? 'Sincronizare...' : 'Sincronizează Calendare'}</span>
         </button>
       </div>
+
+      {syncResults && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-neutral-900 text-white p-6 rounded-3xl overflow-hidden"
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400">Rezultate Sincronizare</h4>
+            <button onClick={() => setSyncResults(null)} className="text-neutral-500 hover:text-white"><X size={14} /></button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {syncResults.map((res, idx) => (
+              <div key={idx} className="flex justify-between items-center py-2 border-b border-neutral-800 last:border-0">
+                <div className="text-[10px]">
+                  <span className="text-neutral-400 block uppercase tracking-tighter">{res.slug}</span>
+                  <span className="font-bold">{res.source || 'General'}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                    res.status === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {res.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <SyncInfo />
       
