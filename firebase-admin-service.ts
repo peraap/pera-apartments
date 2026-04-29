@@ -1,19 +1,23 @@
-import admin from "firebase-admin";
+import { initializeApp, getApps, cert, App } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { firebaseConfig } from "./src/firebase-config";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-let adminDb: any;
+let adminDb: Firestore | any;
 
 try {
-  if (admin.apps.length === 0) {
+  let app: App;
+  const existingApps = getApps();
+  
+  if (existingApps.length === 0) {
     const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
     if (serviceAccountEmail && privateKey) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
+      app = initializeApp({
+        credential: cert({
           projectId: firebaseConfig.projectId,
           clientEmail: serviceAccountEmail,
           privateKey: privateKey,
@@ -22,24 +26,27 @@ try {
       console.log("[Firebase Admin] Initialized with Service Account Cert");
     } else {
       // Use application default credentials or just projectId if in Cloud Run
-      admin.initializeApp({
+      app = initializeApp({
         projectId: firebaseConfig.projectId,
       });
       console.log("[Firebase Admin] Initialized with default credentials/projectId");
     }
+  } else {
+    app = existingApps[0];
   }
   
   const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
   
+  // In firebase-admin v10+, specify database via first string argument OR provide app instance
   if (dbId === '(default)') {
-    adminDb = admin.firestore();
+    adminDb = getFirestore(app);
   } else {
     try {
-      // In firebase-admin v10+, specify database via first argument
-      adminDb = admin.firestore(dbId);
+      // @ts-ignore - Some versions might have different signatures but this is generally supported
+      adminDb = getFirestore(app, dbId);
     } catch (e) {
-      console.warn(`[Firebase Admin] Could not initialize with dbId ${dbId}, falling back to default:`, e.message);
-      adminDb = admin.firestore();
+      console.warn(`[Firebase Admin] Could not initialize with dbId ${dbId}, falling back to default:`, (e as Error).message);
+      adminDb = getFirestore(app);
     }
   }
   

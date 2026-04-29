@@ -1,6 +1,6 @@
 node_modules/
 build/
-dist/
+# dist/ - Commented out to ensure it's picked up by artifact upload if needed
 coverage/
 .DS_Store
 *.log

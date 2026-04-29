@@ -14,7 +14,6 @@ import { addBookingToCalendar, syncExternalIcalToGoogle } from "./google-calenda
 import { getApartmentBlockedDates } from "./ical-sync";
 import ical, { ICalCalendarMethod, ICalEventBusyStatus } from "ical-generator";
 import { google } from "googleapis";
-import admin from "firebase-admin";
 import { adminDb } from "./firebase-admin-service";
 import { eachDayOfInterval, format, parseISO } from "date-fns";
 
@@ -114,7 +113,11 @@ async function startServer() {
   
   // Debug Logging Middleware
   app.use((req, res, next) => {
-    console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    if (req.path.startsWith('/admin')) {
+      console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    } else {
+      console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    }
     next();
   });
 
@@ -819,6 +822,13 @@ async function startServer() {
     });
     app.use(vite.middlewares);
     
+    // Explicit route for /admin to ensure it hit React Router
+    app.get(['/admin', '/admin/*'], (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      console.log(`[Admin Fallback] Serving index.html for ${req.path}`);
+      res.sendFile(path.join(process.cwd(), 'index.html'));
+    });
+
     // Explicitly handle SPA fallback in dev if Vite middleware misses it for some reason
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
@@ -831,9 +841,17 @@ async function startServer() {
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) {
+        console.warn(`[404] API Not Found: ${req.path}`);
         return res.status(404).json({ error: "API route not found" });
       }
-      res.sendFile(path.join(distPath, 'index.html'));
+      console.log(`[Production Fallback] Serving index.html for ${req.path}`);
+      const indexPath = path.join(distPath, 'index.html');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error(`[Error] Failed to send index.html: ${err.message}`);
+          res.status(500).send("Server Error: Missing index.html in dist");
+        }
+      });
     });
   }
 
