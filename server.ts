@@ -334,12 +334,13 @@ async function startServer() {
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : apartments;
       console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms: ${syncApartments.join(', ')}`);
 
-      // Process rooms in parallel to avoid total request timeout
+      // Process rooms in batches or parallel
       const allResults = await Promise.all(syncApartments.map(async (slug) => {
         const normalizedSlug = slug.toLowerCase().trim();
-        const roomResults = [];
+        const roomResults: any[] = [];
         
-        // Use a more robust env key mapping
+        // Find links in environment variables
+        // We try multiple naming conventions to be very flexible
         const keysToTry = [
           normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
           normalizedSlug.replace(/-/g, '_').toUpperCase(),
@@ -347,20 +348,13 @@ async function startServer() {
           normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase()
         ];
         
-        // Map common aliases
         const mapping: Record<string, string> = {
           'apartament-premium-king': 'PREMIUM_KING',
           'apartament-deluxe-double': 'DELUXE_DOUBLE',
           'apartament-family-standard': 'FAMILY_STANDARD',
           'apartament-family-deluxe': 'FAMILY_DELUXE',
           'peraduo': 'PERADUO',
-          'peraconfort': 'PERACONFORT',
-          'pera-duo': 'PERADUO',
-          'pera-confort': 'PERACONFORT',
-          'premium-king': 'PREMIUM_KING',
-          'deluxe-double': 'DELUXE_DOUBLE',
-          'family-standard': 'FAMILY_STANDARD',
-          'family-deluxe': 'FAMILY_DELUXE'
+          'peraconfort': 'PERACONFORT'
         };
         
         if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
@@ -373,39 +367,38 @@ async function startServer() {
           if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
         }
 
-        // Booking.com Sync
+        // Booking Sync
         if (!targetSource || targetSource.toLowerCase() === 'booking') {
           if (bookingUrl) {
             try {
               await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
               roomResults.push({ slug, source: 'Booking', status: 'success' });
             } catch (err: any) {
-              console.error(`[Sync] Booking Error for ${slug}:`, err.message);
               roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
             }
           } else {
-            roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'Configurare URL lipsă' });
+            roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'Configurare lipsă (ICAL_BOOKING_...)' });
           }
         }
         
-        // Airbnb Sync
-        const hasAirbnbInMaster = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
+        // Airbnb Sync 
+        const shouldHaveAirbnb = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
         if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
           if (airbnbUrl) {
             try {
               await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
               roomResults.push({ slug, source: 'Airbnb', status: 'success' });
             } catch (err: any) {
-              console.error(`[Sync] Airbnb Error for ${slug}:`, err.message);
               roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
             }
-          } else if (hasAirbnbInMaster) {
-            roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'Configurare URL lipsă' });
+          } else if (shouldHaveAirbnb) {
+            roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'Configurare lipsă (ICAL_AIRBNB_...)' });
           }
         }
 
+        // Ensure we always return something for this slug
         if (roomResults.length === 0) {
-           roomResults.push({ slug, source: 'General', status: 'skipped', message: 'Nicio sursă configurată' });
+          roomResults.push({ slug, source: 'Verificare', status: 'skipped', message: 'Nu s-au găsit surse configurate pentru acest apartament.' });
         }
 
         return roomResults;
