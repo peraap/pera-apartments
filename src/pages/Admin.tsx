@@ -359,6 +359,10 @@ const SyncInfo = ({ apartments: dbApartments }: { apartments: Apartment[] }) => 
     { name: "Family Deluxe", slug: "apartament-family-deluxe" },
     { name: "Pera Duo", slug: "peraduo" },
     { name: "Pera Confort", slug: "peraconfort" },
+    { name: "Premium King (Alt)", slug: "premium-king" },
+    { name: "Deluxe Double (Alt)", slug: "deluxe-double" },
+    { name: "Family Standard (Alt)", slug: "family-standard" },
+    { name: "Family Deluxe (Alt)", slug: "family-deluxe" },
   ];
 
   // Merge lists to ensure we show all rooms even if they aren't in Firestore yet
@@ -477,7 +481,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-12">
       <div className="flex justify-between items-center">
-        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.0.7)</span></h3>
+        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.1.0)</span></h3>
         <button 
           onClick={handleFullSync}
           disabled={syncing}

@@ -324,18 +324,29 @@ async function startServer() {
         'apartament-family-standard',
         'apartament-family-deluxe',
         'peraduo',
-        'peraconfort'
+        'peraconfort',
+        'premium-king',
+        'deluxe-double',
+        'family-standard',
+        'family-deluxe'
       ];
 
       // Normalize all slugs to lowercase and ensure uniqueness
+      const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
       const allSlugs = Array.from(new Set([
         ...masterList,
-        ...apartmentsInDb.map(s => s.toLowerCase().trim())
+        ...dbSlugs
       ])).filter(Boolean);
 
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
       console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms. Slugs: ${syncApartments.join(', ')}`);
-      console.log(`[Local Sync] Env vars available: ${Object.keys(process.env).filter(k => k.startsWith('ICAL_')).join(', ')}`);
+      
+      const allEnvKeys = Object.keys(process.env);
+      const icalKeys = allEnvKeys.filter(k => k.startsWith('ICAL_'));
+      console.log(`[Local Sync] ICAL environment keys found: ${icalKeys.length} keys.`);
+      if (icalKeys.length > 0) {
+        console.log(`[Local Sync] Sample keys: ${icalKeys.slice(0, 5).join(', ')}`);
+      }
 
       const finalResults: any[] = [];
 
@@ -375,6 +386,11 @@ async function startServer() {
           for (const k of keysToTry) {
             if (!bookingUrl) bookingUrl = process.env[`ICAL_BOOKING_${k}`] || '';
             if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
+          }
+
+          console.log(`[Sync] Evaluated ${slug}: Booking URL: ${bookingUrl ? 'Found' : 'Missing'}, Airbnb URL: ${airbnbUrl ? 'Found' : 'Missing'}`);
+          if (!bookingUrl && !airbnbUrl) {
+            console.log(`[Sync] No URLs found for ${slug}. Tried keys: ${keysToTry.join(', ')}`);
           }
 
           // Booking Sync
@@ -433,7 +449,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.0.7",
+      version: "1.1.0",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,

@@ -1,7 +1,7 @@
 {
-  "name": "pera-suites-elite-sync",
+  "name": "pera-suites-final",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.1.0",
   "type": "module",
   "engines": {
     "node": "20.x"
