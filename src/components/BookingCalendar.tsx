@@ -56,91 +56,137 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
   };
 
   const fetchBookedDates = async () => {
+    if (!slug) return;
     setCheckingAvailability(true);
+    const blockedDatesSet = new Set<string>();
+    const normalizedSlug = slug.toLowerCase().trim();
+
+    console.log(`[BookingCalendar] Starting fetch for: ${normalizedSlug} (ID: ${apartmentId})`);
+
     try {
-      // 1. Fetch bookings from local database (Firestore)
-      const q = query(
-        collection(db, 'bookings'),
-        where('apartmentId', '==', apartmentId),
-        where('status', 'in', ['confirmed', 'pending'])
-      );
-      const querySnapshot = await getDocs(q);
-      const dates: Date[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const start = new Date(data.checkIn);
-        const end = new Date(data.checkOut);
-        // A booking from 1st to 5th means nights of 1, 2, 3, 4 are taken. 
-        // 5th is check-out and free for next check-in.
-        if (isBefore(start, end)) {
-          const interval = eachDayOfInterval({ start, end: addDays(end, -1) });
-          dates.push(...interval);
-        }
-      });
-
-      // 1b. Fetch universal blocks (all apartments)
-      const qAll = query(
-        collection(db, 'blocks'),
-        where('apartmentId', 'in', ['all', 'toate'])
-      );
-      const allSnapshot = await getDocs(qAll);
-      allSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.startDate && data.endDate) {
-          const start = new Date(data.startDate);
-          const end = new Date(data.endDate);
-          const interval = eachDayOfInterval({ 
-            start, 
-            end: addDays(end, -1) 
-          });
-          dates.push(...interval);
-        }
-      });
-
-      // 1c. Fetch specific manual blocks
-      const qSpecific = query(
-        collection(db, 'blocks'),
-        where('apartmentId', '==', apartmentId)
-      );
-      const specificSnapshot = await getDocs(qSpecific);
-      specificSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.startDate && data.endDate) {
-          const start = new Date(data.startDate);
-          const end = new Date(data.endDate);
-          const interval = eachDayOfInterval({ 
-            start, 
-            end: addDays(end, -1) 
-          });
-          dates.push(...interval);
-        }
-      });
+      // 1. Fetch bookings from Firestore
       try {
-        const response = await fetch(`/api/blocked-dates/${slug}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.blockedDates && Array.isArray(data.blockedDates)) {
-            data.blockedDates.forEach((dateStr: string) => {
-              dates.push(parseISO(dateStr));
-            });
+        const q = query(
+          collection(db, 'bookings'),
+          where('status', 'in', ['confirmed', 'paid', 'succeeded'])
+        );
+        const querySnapshot = await getDocs(q);
+        console.log(`[BookingCalendar] Found ${querySnapshot.size} total active bookings in database.`);
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const targetId = (data.apartmentId || '').toLowerCase().trim();
+          const targetSlug = (data.slug || '').toLowerCase().trim();
+          
+          const isMatch = targetId === apartmentId || 
+                          targetId === normalizedSlug || 
+                          targetSlug === normalizedSlug ||
+                          apartmentName.toLowerCase().includes(targetId) ||
+                          (data.apartmentName && data.apartmentName.toLowerCase().includes(apartmentName.toLowerCase()));
+
+          if (isMatch && data.checkIn && data.checkOut) {
+            try {
+              const start = parseISO(data.checkIn);
+              const end = parseISO(data.checkOut);
+              // Block check-in day up to check-out day (exclusive of check-out day)
+              const interval = eachDayOfInterval({ 
+                start: startOfDay(start), 
+                end: addDays(startOfDay(end), -1) 
+              });
+              interval.forEach(day => blockedDatesSet.add(format(day, 'yyyy-MM-dd')));
+              console.log(`[BookingCalendar] Local booking ${doc.id}: ${format(start, 'yyyy-MM-dd')} to ${format(end, 'yyyy-MM-dd')}`);
+            } catch (err) {
+              console.error(`[BookingCalendar] Error parsing dates for booking ${doc.id}:`, err);
+            }
           }
-        }
-      } catch (apiError) {
-        console.error('Error fetching external blocked dates:', apiError);
+        });
+      } catch (e) {
+        console.error('[BookingCalendar] Error fetching bookings:', e);
       }
 
-      setBookedDates(dates);
+      // 2. Fetch manual blocks
+      try {
+        const qBlocks = query(collection(db, 'manual_blocks'));
+        const blocksSnapshot = await getDocs(qBlocks);
+        console.log(`[BookingCalendar] Found ${blocksSnapshot.size} total manual blocks in database.`);
+        
+        blocksSnapshot.forEach((doc) => {
+          const data = doc.data();
+          const blockAptId = (data.apartmentId || '').trim().toLowerCase();
+          
+          const isMatch = blockAptId === 'all' || 
+                          blockAptId === 'toate' ||
+                          blockAptId === apartmentId ||
+                          blockAptId === normalizedSlug ||
+                          normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
+                          blockAptId.includes(normalizedSlug.replace(/-/g, ' '));
+
+          if (isMatch && data.startDate && data.endDate) {
+            try {
+              const start = parseISO(data.startDate);
+              const end = parseISO(data.endDate);
+              // For manual blocks, we block everything from start to end (inclusive)
+              const interval = eachDayOfInterval({ 
+                start: startOfDay(start), 
+                end: startOfDay(end) 
+              });
+              interval.forEach(day => blockedDatesSet.add(format(day, 'yyyy-MM-dd')));
+              console.log(`[BookingCalendar] Manual block matched: ${blockAptId}. Total days: ${interval.length}`);
+            } catch (err) {
+              console.error(`[BookingCalendar] Error parsing dates for block ${doc.id}:`, err);
+            }
+          }
+        });
+      } catch (e) {
+        console.error('[BookingCalendar] Error fetching blocks:', e);
+      }
+
+      // 3. Fetch external dates (iCal/Google Sync via Backend)
+      try {
+        console.log(`[BookingCalendar] Fetching external dates from API: /api/blocked-dates/${normalizedSlug}`);
+        const response = await fetch(`/api/blocked-dates/${normalizedSlug}`);
+        if (response.ok) {
+          const data = await response.json();
+          const extDates = data.blockedDates || [];
+          console.log(`[BookingCalendar] API returned ${extDates.length} external dates for ${normalizedSlug}`);
+          extDates.forEach((d: string) => blockedDatesSet.add(d));
+        } else {
+          console.error(`[BookingCalendar] API failed with status: ${response.status}`);
+        }
+      } catch (apiError) {
+        console.error('[BookingCalendar] Error fetching external dates:', apiError);
+      }
+
+      const finalDatesList = Array.from(blockedDatesSet).sort();
+      console.log(`[BookingCalendar] Final unique blocked dates count: ${finalDatesList.length}`);
+      
+      const dateObjects = finalDatesList.map(dateStr => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return new Date(y, m - 1, d, 12, 0, 0);
+      });
+      
+      setBookedDates(dateObjects);
     } catch (error) {
-      console.error('Error fetching booked dates:', error);
+      console.error('[BookingCalendar] Global error in fetchBookedDates:', error);
     } finally {
       setCheckingAvailability(false);
     }
   };
 
-  const disabledDays = bookedDates.map(d => format(d, 'yyyy-MM-dd'));
+  const disabledDays = React.useMemo(() => {
+    const formatted = bookedDates.map(d => format(d, 'yyyy-MM-dd'));
+    console.log(`[BookingCalendar] Recalculated disabled days: ${formatted.length} dates blocked.`);
+    return formatted;
+  }, [bookedDates]);
 
   const isDateDisabled = (date: Date) => {
-    return isBefore(date, startOfDay(new Date())) || disabledDays.includes(format(date, 'yyyy-MM-dd'));
+    // Disable past dates
+    const today = startOfDay(new Date());
+    if (isBefore(date, today)) return true;
+    
+    // Disable booked/blocked dates
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return disabledDays.includes(dateStr);
   };
 
   const handleRangeSelect = (newRange: DateRange | undefined) => {

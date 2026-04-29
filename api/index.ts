@@ -697,7 +697,7 @@ app.get("/api/blocked-dates/:slug", async (req, res) => {
           const end = new Date(ev.end);
           if (end >= today) {
             const current = new Date(start);
-            while (current <= end) {
+            while (current < end) {
               blockedDates.add(current.toISOString().split('T')[0]);
               current.setDate(current.getDate() + 1);
             }
@@ -754,14 +754,22 @@ app.get("/api/blocked-dates/:slug", async (req, res) => {
     const dates: Set<string> = new Set();
     try {
       const normalizedSlug = slug.trim().toLowerCase();
-      const q = query(collection(db, "manual_blocks"));
-      const snapshot = await getDocs(q);
+      // Use adminDb if available for better reliability on server-side
+      let snapshot;
+      if (adminDb) {
+        snapshot = await adminDb.collection("manual_blocks").get();
+      } else {
+        const q = query(collection(db, "manual_blocks"));
+        snapshot = await getDocs(q);
+      }
       
-      snapshot.forEach(doc => {
+      snapshot.forEach((doc: any) => {
         const block = doc.data();
         const blockAptId = (block.apartmentId || '').trim().toLowerCase();
         
-        const isMatch = blockAptId === normalizedSlug || 
+        const isMatch = blockAptId === 'all' || 
+                        blockAptId === 'toate' ||
+                        blockAptId === normalizedSlug || 
                         normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
                         blockAptId.includes(normalizedSlug.replace(/-/g, ' '));
         
@@ -769,7 +777,7 @@ app.get("/api/blocked-dates/:slug", async (req, res) => {
           const start = new Date(block.startDate);
           const end = new Date(block.endDate);
           let current = new Date(start);
-          while (current <= end) {
+          while (current < end) {
             dates.add(current.toISOString().split('T')[0]);
             current.setDate(current.getDate() + 1);
           }

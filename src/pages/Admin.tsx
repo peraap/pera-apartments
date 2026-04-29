@@ -34,7 +34,9 @@ import {
   Users as UsersIcon,
   Shield,
   Clock,
-  Tag
+  Tag,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -393,6 +395,7 @@ const Dashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const qB = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
@@ -414,6 +417,20 @@ const Dashboard = () => {
     return () => { unsubB(); unsubA(); };
   }, []);
 
+  const handleFullSync = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/sync-calendars');
+      const data = await response.json();
+      toast.success("Sincronizare finalizată cu succes!");
+      console.log("Sync results:", data.results);
+    } catch (e) {
+      toast.error("Eroare la sincronizare.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const updateBookingStatus = async (id: string, status: string) => {
     try {
       await updateDoc(doc(db, 'bookings', id), { status });
@@ -425,6 +442,20 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-12">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-serif">Dashboard Admin</h3>
+        <button 
+          onClick={handleFullSync}
+          disabled={syncing}
+          className={`flex items-center space-x-2 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${
+            syncing ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
+        >
+          {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+          <span>{syncing ? 'Sincronizare...' : 'Sincronizează Calendare'}</span>
+        </button>
+      </div>
+
       <SyncInfo />
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -726,6 +757,155 @@ const BookingsManager = () => {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const BlocksManager = () => {
+  const [blocks, setBlocks] = useState<any[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newBlock, setNewBlock] = useState({
+    apartmentId: 'all',
+    startDate: '',
+    endDate: '',
+    reason: ''
+  });
+
+  useEffect(() => {
+    const unsubB = onSnapshot(collection(db, 'manual_blocks'), (snapshot) => {
+      setBlocks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    const unsubA = onSnapshot(collection(db, 'apartments'), (snapshot) => {
+      setApartments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Apartment)));
+    });
+    return () => { unsubB(); unsubA(); };
+  }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, 'manual_blocks'), {
+        ...newBlock,
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Blocaj adăugat!");
+      setIsAdding(false);
+      setNewBlock({ apartmentId: 'all', startDate: '', endDate: '', reason: '' });
+    } catch (e) {
+      toast.error("Eroare la adăugare.");
+    }
+  };
+
+  const deleteBlock = async (id: string) => {
+    if (window.confirm("Ștergi acest blocaj?")) {
+      try {
+        await deleteDoc(doc(db, 'manual_blocks', id));
+        toast.success("Blocaj șters.");
+      } catch (e) {
+        toast.error("Eroare la ștergere.");
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-serif">Management Blocaje Manuale</h3>
+        <button 
+          onClick={() => setIsAdding(true)} 
+          className="bg-black text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest flex items-center space-x-2"
+        >
+          <Plus size={16} />
+          <span>Blocaj Nou</span>
+        </button>
+      </div>
+
+      {isAdding && (
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-neutral-100">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Apartament</label>
+              <select 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newBlock.apartmentId}
+                onChange={e => setNewBlock({...newBlock, apartmentId: e.target.value})}
+                required
+              >
+                <option value="all">Toate Apartamentele</option>
+                {apartments.map(apt => (
+                  <option key={apt.id} value={apt.slug}>{apt.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Motiv (opțional)</label>
+              <input 
+                placeholder="Ex: Mentenanță, Curățenie..." 
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newBlock.reason}
+                onChange={e => setNewBlock({...newBlock, reason: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Data Început</label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newBlock.startDate}
+                onChange={e => setNewBlock({...newBlock, startDate: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-neutral-400">Data Sfârșit</label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
+                value={newBlock.endDate}
+                onChange={e => setNewBlock({...newBlock, endDate: e.target.value})}
+                required
+              />
+            </div>
+            <div className="md:col-span-2 flex space-x-4 pt-4">
+              <button type="submit" className="bg-black text-white px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-neutral-800 transition-all">Salvează</button>
+              <button type="button" onClick={() => setIsAdding(false)} className="text-neutral-400 text-xs font-bold uppercase tracking-widest hover:text-black">Anulează</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-neutral-50 text-[10px] uppercase tracking-widest font-bold text-neutral-400">
+            <tr>
+              <th className="px-8 py-4">Apartament</th>
+              <th className="px-8 py-4">Perioadă</th>
+              <th className="px-8 py-4">Motiv</th>
+              <th className="px-8 py-4">Acțiuni</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-100">
+            {blocks.map((block) => (
+              <tr key={block.id} className="hover:bg-neutral-50 transition-colors">
+                <td className="px-8 py-6 font-bold">{block.apartmentId === 'all' ? 'Toate' : block.apartmentId}</td>
+                <td className="px-8 py-6 text-neutral-600">
+                  {new Date(block.startDate).toLocaleDateString()} - {new Date(block.endDate).toLocaleDateString()}
+                </td>
+                <td className="px-8 py-6 text-neutral-400 text-xs italic">{block.reason || '-'}</td>
+                <td className="px-8 py-6">
+                  <button onClick={() => deleteBlock(block.id)} className="p-2 hover:bg-red-50 text-red-400 rounded-lg"><Trash2 size={16} /></button>
+                </td>
+              </tr>
+            ))}
+            {blocks.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-8 py-12 text-center text-neutral-400 italic">Niciun blocaj manual adăugat.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -1177,6 +1357,7 @@ export default function Admin() {
     { name: 'Utilizatori', path: '/admin/users', icon: <UsersIcon size={18} /> },
     { name: 'Apartamente', path: '/admin/apartments', icon: <HomeIcon size={18} /> },
     { name: 'Rezervări', path: '/admin/bookings', icon: <Calendar size={18} /> },
+    { name: 'Blocaje Manuale', path: '/admin/blocks', icon: <Clock size={18} /> },
     { name: 'Oferte', path: '/admin/offers', icon: <Tag size={18} /> },
     { name: 'Blog', path: '/admin/blog', icon: <FileText size={18} /> },
     { name: 'Setări', path: '/admin/settings', icon: <Settings size={18} /> },
@@ -1245,6 +1426,7 @@ export default function Admin() {
           <Route path="/users" element={<UsersManager />} />
           <Route path="/apartments" element={<ApartmentsManager />} />
           <Route path="/bookings" element={<BookingsManager />} />
+          <Route path="/blocks" element={<BlocksManager />} />
           <Route path="/offers" element={<OffersManager />} />
           <Route path="/blog" element={<BlogManager />} />
           <Route path="/settings" element={<SettingsManager />} />

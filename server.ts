@@ -110,6 +110,8 @@ async function startServer() {
     next();
   });
 
+  app.use(express.json());
+
   // 1. Static Validation & Higher Priority Public Routes
   const handleIcalExport = async (req: any, res: any) => {
     try {
@@ -419,8 +421,6 @@ async function startServer() {
 
     res.json({ received: true });
   });
-
-  app.use(express.json());
 
   app.get("/api/blocked-dates/:slug", async (req, res) => {
     try {
