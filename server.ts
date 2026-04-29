@@ -335,6 +335,7 @@ async function startServer() {
 
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
       console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms. Slugs: ${syncApartments.join(', ')}`);
+      console.log(`[Local Sync] Env vars available: ${Object.keys(process.env).filter(k => k.startsWith('ICAL_')).join(', ')}`);
 
       const finalResults: any[] = [];
 
@@ -345,11 +346,12 @@ async function startServer() {
         
         try {
           // Find links in environment variables
+          const baseKey = normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
           const keysToTry = [
-            normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
+            baseKey,
             normalizedSlug.replace(/-/g, '_').toUpperCase(),
             normalizedSlug.toUpperCase(),
-            normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase()
+            baseKey.replace('APARTAMENT_', '')
           ];
           
           const mapping: Record<string, string> = {
@@ -431,7 +433,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.0.5",
+      version: "1.0.7",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,
