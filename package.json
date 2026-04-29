@@ -1,7 +1,7 @@
 {
-  "name": "pera-suites-web",
+  "name": "perasuites",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.2",
   "type": "module",
   "engines": {
     "node": "20.x"

@@ -348,8 +348,10 @@ async function startServer() {
         console.log(`[Local Sync] Sample keys: ${icalKeys.slice(0, 5).join(', ')}`);
       }
 
-      const initialResults: any[] = [];
-      const syncPromises = syncApartments.map(async (slug) => {
+      const finalResults: any[] = [];
+      
+      // Sequential processing to avoid hammering APIs and causing timeouts
+      for (const slug of syncApartments) {
         const normalizedSlug = slug.toLowerCase().trim();
         const roomResults: any[] = [];
         
@@ -382,23 +384,28 @@ async function startServer() {
           let airbnbUrl = '';
 
           for (const k of keysToTry) {
-            if (!bookingUrl) bookingUrl = process.env[`ICAL_BOOKING_${k}`] || '';
-            if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
+            const bKey = `ICAL_BOOKING_${k}`;
+            const aKey = `ICAL_AIRBNB_${k}`;
+            if (!bookingUrl) bookingUrl = process.env[bKey] || '';
+            if (!airbnbUrl) airbnbUrl = process.env[aKey] || '';
           }
 
           if (!bookingUrl && !airbnbUrl) {
-            return [{ slug, source: 'Config', status: 'skipped', message: 'Lipsește ICAL_BOOKING_... sau ICAL_AIRBNB_... în setările .env' }];
+            finalResults.push({ slug, source: 'Config', status: 'skipped', message: 'Lipsește ICAL_BOOKING_... sau ICAL_AIRBNB_... în setările .env' });
+            continue;
           }
 
           // Check for Calendar ID
           const calIdRaw = process.env[`GOOGLE_CALENDAR_ID_${normalizedSlug.replace(/-/g, '_').toUpperCase()}`];
           if (!calIdRaw && !process.env.GOOGLE_CALENDAR_IDS_JSON) {
-            roomResults.push({ slug, source: 'Warning', status: 'skipped', message: 'Lipsă GOOGLE_CALENDAR_ID_... (Sync se va face în "primary" DACĂ acesta e accesibil)' });
+            console.warn(`[Sync] Warning: Missing specific calendar ID for ${slug}`);
           }
 
+          // Booking Sync
           if (!targetSource || targetSource.toLowerCase() === 'booking') {
             if (bookingUrl) {
               try {
+                console.log(`[Sync] Booking for ${slug}...`);
                 await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
                 roomResults.push({ slug, source: 'Booking', status: 'success' });
               } catch (err: any) {
@@ -412,6 +419,7 @@ async function startServer() {
           if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
             if (airbnbUrl) {
               try {
+                console.log(`[Sync] Airbnb for ${slug}...`);
                 await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
                 roomResults.push({ slug, source: 'Airbnb', status: 'success' });
               } catch (err: any) {
@@ -428,11 +436,9 @@ async function startServer() {
           console.error(`[Sync] Critical room error for ${slug}:`, roomError.message);
           roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
         }
-        return roomResults;
-      });
-
-      const resultsNested = await Promise.all(syncPromises);
-      const finalResults = resultsNested.flat();
+        
+        finalResults.push(...roomResults);
+      }
       
       res.json({ 
         status: "Sync completed", 
@@ -448,7 +454,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.2.0",
+      version: "1.2.2",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,
