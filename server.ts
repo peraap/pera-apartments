@@ -387,10 +387,15 @@ async function startServer() {
           }
 
           if (!bookingUrl && !airbnbUrl) {
-            return [{ slug, source: 'Config', status: 'skipped', message: 'Nicio sursă configurată (Check .env)' }];
+            return [{ slug, source: 'Config', status: 'skipped', message: 'Lipsește ICAL_BOOKING_... sau ICAL_AIRBNB_... în setările .env' }];
           }
 
-          // Booking Sync
+          // Check for Calendar ID
+          const calIdRaw = process.env[`GOOGLE_CALENDAR_ID_${normalizedSlug.replace(/-/g, '_').toUpperCase()}`];
+          if (!calIdRaw && !process.env.GOOGLE_CALENDAR_IDS_JSON) {
+            roomResults.push({ slug, source: 'Warning', status: 'skipped', message: 'Lipsă GOOGLE_CALENDAR_ID_... (Sync se va face în "primary" DACĂ acesta e accesibil)' });
+          }
+
           if (!targetSource || targetSource.toLowerCase() === 'booking') {
             if (bookingUrl) {
               try {
@@ -443,7 +448,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.1.2",
+      version: "1.2.0",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,

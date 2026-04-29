@@ -486,7 +486,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-12">
       <div className="flex justify-between items-center">
-        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.1.2)</span></h3>
+        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.2.0)</span></h3>
         <button 
           onClick={handleFullSync}
           disabled={syncing}
