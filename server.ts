@@ -304,28 +304,31 @@ async function startServer() {
     const targetSource = req.query.source as string;
     
     try {
-      // 1. Get apartments from Firestore instead of hardcoded list
-      let apartments: string[] = [];
+      // 1. Get apartments from Firestore and merge with master list
+      let apartmentsInDb: string[] = [];
       try {
         if (adminDb) {
           const snapshot = await adminDb.collection('apartments').get();
-          apartments = snapshot.docs.map(doc => doc.data().slug);
+          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
         } else if (db) {
           const snapshot = await getDocs(collection(db, 'apartments'));
-          apartments = snapshot.docs.map(doc => doc.data().slug);
+          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
         }
       } catch (e) {
         console.error("[Sync] Error fetching apartments from DB:", e);
-        // Fallback to minimal list if DB fails
-        apartments = [
-          'apartament-premium-king',
-          'apartament-deluxe-double',
-          'apartament-family-standard',
-          'apartament-family-deluxe',
-          'peraduo',
-          'peraconfort'
-        ];
       }
+
+      const masterList = [
+        'apartament-premium-king',
+        'apartament-deluxe-double',
+        'apartament-family-standard',
+        'apartament-family-deluxe',
+        'peraduo',
+        'peraconfort'
+      ];
+
+      // Use a Set to ensure unique slugs
+      const apartments = Array.from(new Set([...masterList, ...apartmentsInDb])).filter(Boolean);
 
       const results: any[] = [];
       const syncApartments = targetSlug ? [targetSlug] : apartments;
@@ -333,7 +336,7 @@ async function startServer() {
       console.log(`[Local Sync] Starting sync for: ${syncApartments.join(', ')}`);
 
       for (const slug of syncApartments) {
-        const normalizedSlug = slug.toLowerCase();
+        const normalizedSlug = slug.toLowerCase().trim();
         
         // Use a more robust env key mapping
         const keysToTry = [
@@ -351,7 +354,15 @@ async function startServer() {
           'peraduo': 'PERADUO',
           'peraconfort': 'PERACONFORT',
           'pera-duo': 'PERADUO',
-          'pera-confort': 'PERACONFORT'
+          'pera-confort': 'PERACONFORT',
+          'premium-king': 'PREMIUM_KING',
+          'deluxe-double': 'DELUXE_DOUBLE',
+          'family-standard': 'FAMILY_STANDARD',
+          'family-deluxe': 'FAMILY_DELUXE',
+          'pera-apartments-premium-king': 'PREMIUM_KING',
+          'pera-apartments-deluxe-double': 'DELUXE_DOUBLE',
+          'pera-apartments-family-standard': 'FAMILY_STANDARD',
+          'pera-apartments-family-deluxe': 'FAMILY_DELUXE'
         };
         
         if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
@@ -364,38 +375,38 @@ async function startServer() {
           if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
         }
 
+        const roomResults = [];
+
         // Booking.com Sync
         if (!targetSource || targetSource.toLowerCase() === 'booking') {
           if (bookingUrl) {
-            console.log(`[Local Sync] Syncing Booking for ${slug}`);
             try {
               await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-              results.push({ slug, source: 'Booking', status: 'success' });
+              roomResults.push({ slug, source: 'Booking', status: 'success' });
             } catch (err: any) {
-              results.push({ slug, source: 'Booking', status: 'error', message: err.message });
+              roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
             }
           } else {
-            results.push({ slug, source: 'Booking', status: 'skipped', message: 'No URL' });
+            roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'No Booking URL' });
           }
         }
         
         // Airbnb Sync
+        const hasAirbnbInMaster = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
         if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
           if (airbnbUrl) {
-            console.log(`[Local Sync] Syncing Airbnb for ${slug}`);
             try {
               await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-              results.push({ slug, source: 'Airbnb', status: 'success' });
+              roomResults.push({ slug, source: 'Airbnb', status: 'success' });
             } catch (err: any) {
-              results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+              roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
             }
-          } else {
-            // Only report skipped Airbnb for those that usually have it (optional)
-            if (slug.includes('peraduo') || slug.includes('peraconfort')) {
-              results.push({ slug, source: 'Airbnb', status: 'skipped', message: 'No URL' });
-            }
+          } else if (hasAirbnbInMaster) {
+            roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'No Airbnb URL' });
           }
         }
+
+        results.push(...roomResults);
       }
 
       res.json({ 

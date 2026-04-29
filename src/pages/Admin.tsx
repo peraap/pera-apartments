@@ -349,8 +349,10 @@ const UsersManager = () => {
   );
 };
 
-const SyncInfo = () => {
-  const icalLinks = [
+const SyncInfo = ({ apartments: dbApartments }: { apartments: Apartment[] }) => {
+  const baseUrl = window.location.origin;
+
+  const masterList = [
     { name: "Premium King", slug: "apartament-premium-king" },
     { name: "Deluxe Double", slug: "apartament-deluxe-double" },
     { name: "Family Standard", slug: "apartament-family-standard" },
@@ -359,30 +361,39 @@ const SyncInfo = () => {
     { name: "Pera Confort", slug: "peraconfort" },
   ];
 
-  const baseUrl = window.location.origin;
+  // Merge lists to ensure we show at least the standard ones
+  const allSlugs = new Set(dbApartments.map(a => a.slug));
+  const displayList = [...dbApartments];
+  
+  masterList.forEach(m => {
+    if (!allSlugs.has(m.slug)) {
+      displayList.push({ id: m.slug, name: m.name, slug: m.slug } as Apartment);
+    }
+  });
 
   return (
     <div className="space-y-6">
       <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
         <h3 className="text-lg font-serif mb-4 flex items-center gap-2">
-          <Settings className="text-blue-500" size={20} />
+          <RefreshCw className="text-blue-500" size={20} />
           Sincronizare Calendare (iCal Export)
         </h3>
         <p className="text-sm text-blue-800 mb-4">
           Copiați aceste link-uri și adăugați-le în Airbnb sau Booking.com la secțiunea "Import Calendar" pentru a sincroniza rezervările de pe site.
         </p>
-        {window.location.hostname.includes('ais-dev') && (
-          <div className="mb-4 p-3 bg-blue-100 rounded-xl text-[10px] text-blue-700 font-bold border border-blue-200">
-            NOTĂ: Pentru ca Airbnb/Booking să poată accesa aceste link-uri, trebuie să folosiți varianta "SHARE" a aplicației (Shared App URL), nu link-ul de test (Development URL).
-          </div>
-        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {icalLinks.map(link => (
-            <div key={link.slug} className="bg-white p-4 rounded-2xl shadow-sm border border-blue-200/50">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">{link.name}</span>
-              <code className="text-[10px] text-blue-600 break-all bg-blue-50 px-2 py-1 rounded block select-all">
-                {`${baseUrl}/api/export-ical/${link.slug}.ics`}
-              </code>
+          {displayList.map(apt => (
+            <div key={apt.id} className="bg-white p-4 rounded-2xl shadow-sm border border-blue-200/50">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">{apt.name}</span>
+              <div className="flex flex-col space-y-2">
+                <div className="flex justify-between items-center text-[8px] text-neutral-400 uppercase tracking-tighter">
+                  <span>Slug: {apt.slug}</span>
+                  <span className="text-blue-400 font-bold italic">Activ</span>
+                </div>
+                <code className="text-[10px] text-blue-600 break-all bg-blue-50 px-2 py-1 rounded block select-all">
+                  {`${baseUrl}/api/export-ical/${apt.slug}.ics`}
+                </code>
+              </div>
             </div>
           ))}
         </div>
@@ -462,7 +473,7 @@ const Dashboard = () => {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-neutral-900 text-white p-6 rounded-3xl overflow-hidden"
+          className="bg-neutral-900 text-white p-6 rounded-3xl max-h-[500px] overflow-y-auto"
         >
           <div className="flex justify-between items-center mb-4">
             <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400">Rezultate Sincronizare</h4>
@@ -490,7 +501,7 @@ const Dashboard = () => {
         </motion.div>
       )}
 
-      <SyncInfo />
+      <SyncInfo apartments={apartments} />
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-neutral-100">

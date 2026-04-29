@@ -48,13 +48,46 @@ export async function getBlockedDatesFromIcal(url: string): Promise<string[]> {
 }
 
 export async function getApartmentBlockedDates(slug: string): Promise<string[]> {
-  // Convert slug to uppercase for env matching 
-  const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+  const normalizedSlug = slug.toLowerCase().trim();
   
-  const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
-  const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
+  // Use a more robust env key mapping to match .env.example
+  const keysToTry = [
+    normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
+    normalizedSlug.replace(/-/g, '_').toUpperCase(),
+    normalizedSlug.toUpperCase()
+  ];
+  
+  // Map common aliases
+  const mapping: Record<string, string> = {
+    'apartament-premium-king': 'PREMIUM_KING',
+    'apartament-deluxe-double': 'DELUXE_DOUBLE',
+    'apartament-family-standard': 'FAMILY_STANDARD',
+    'apartament-family-deluxe': 'FAMILY_DELUXE',
+    'peraduo': 'PERADUO',
+    'peraconfort': 'PERACONFORT',
+    'pera-duo': 'PERADUO',
+    'pera-confort': 'PERACONFORT',
+    'premium-king': 'PREMIUM_KING',
+    'deluxe-double': 'DELUXE_DOUBLE',
+    'family-standard': 'FAMILY_STANDARD',
+    'family-deluxe': 'FAMILY_DELUXE',
+    'deluxe': 'DELUXE_DOUBLE', // fallback
+    'standard': 'FAMILY_STANDARD' // fallback
+  };
+  
+  if (mapping[normalizedSlug]) {
+    keysToTry.unshift(mapping[normalizedSlug]);
+  }
 
-  console.log(`[iCal Sync] Syncing ${slug}. Booking: ${!!bookingUrl}, Airbnb: ${!!airbnbUrl}`);
+  let bookingUrl = '';
+  let airbnbUrl = '';
+
+  for (const k of keysToTry) {
+    if (!bookingUrl) bookingUrl = process.env[`ICAL_BOOKING_${k}`] || '';
+    if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
+  }
+
+  console.log(`[iCal Sync] Syncing ${normalizedSlug}. Booking: ${!!bookingUrl}, Airbnb: ${!!airbnbUrl}`);
 
   // Also fetch from Google Calendar if configured
   const googleCalendarPromise = process.env.GOOGLE_CALENDAR_ID ? 

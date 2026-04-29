@@ -14,6 +14,8 @@ export async function getCalendarClient() {
 }
 
 export async function getCalendarIdForSlug(slug: string): Promise<string> {
+  const normalizedSlug = slug.toLowerCase().trim();
+  
   const mapping: Record<string, string> = {
     'apartament-premium-king': 'KING',
     'premium-king': 'KING',
@@ -26,11 +28,15 @@ export async function getCalendarIdForSlug(slug: string): Promise<string> {
     'peraduo': 'PERADUO',
     'peraconfort': 'PERACONFORT',
     'pera-duo': 'PERADUO',
-    'pera-confort': 'PERACONFORT'
+    'pera-confort': 'PERACONFORT',
+    'camera-king': 'KING',
+    'camera-dubla': 'DUBLA_DELUXE',
+    'camera-familie': 'FAMILIE',
+    'family-room': 'FAMILIE'
   };
 
-  const key = mapping[slug.toLowerCase()];
-  const altKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
+  const key = mapping[normalizedSlug];
+  const altKey = normalizedSlug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
 
   // 1. Check consolidated JSON first
   if (process.env.GOOGLE_CALENDAR_IDS_JSON) {
@@ -38,21 +44,31 @@ export async function getCalendarIdForSlug(slug: string): Promise<string> {
       const idsMap = JSON.parse(process.env.GOOGLE_CALENDAR_IDS_JSON);
       if (key && idsMap[key]) return idsMap[key];
       if (idsMap[altKey]) return idsMap[altKey];
-      if (idsMap[slug.toUpperCase().replace(/-/g, '_')]) return idsMap[slug.toUpperCase().replace(/-/g, '_')];
-      if (idsMap[slug.toUpperCase()]) return idsMap[slug.toUpperCase()];
-      if (idsMap[slug]) return idsMap[slug];
+      if (idsMap[normalizedSlug.toUpperCase().replace(/-/g, '_')]) return idsMap[normalizedSlug.toUpperCase().replace(/-/g, '_')];
+      if (idsMap[normalizedSlug.toUpperCase()]) return idsMap[normalizedSlug.toUpperCase()];
+      if (idsMap[normalizedSlug]) return idsMap[normalizedSlug];
     } catch (e) {
       console.error("Error parsing GOOGLE_CALENDAR_IDS_JSON:", e);
     }
   }
 
   // 2. Check individual variables with all possible keys
-  const keysToTry = [key, altKey, slug.toUpperCase().replace(/-/g, '_'), slug.toUpperCase()].filter(Boolean) as string[];
+  const keysToTry = [
+    key, 
+    altKey, 
+    normalizedSlug.replace(/-/g, '_').toUpperCase(), 
+    normalizedSlug.toUpperCase()
+  ].filter(Boolean) as string[];
+  
   for (const k of keysToTry) {
     const val = process.env[`GOOGLE_CALENDAR_ID_${k}`];
     if (val) return val;
   }
   
+  // Also try exact slug in case user named it GOOGLE_CALENDAR_ID_apartament-king
+  const directKey = process.env[`GOOGLE_CALENDAR_ID_${normalizedSlug}`];
+  if (directKey) return directKey;
+
   return 'primary';
 }
 
@@ -155,8 +171,9 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
 
   const calendarId = await getCalendarIdForSlug(slug);
   if (!calendarId || calendarId === 'primary') {
-    console.log(`[Sync ${sourceName}] ⚠️ Skipping ${slug} - No specific Calendar ID found.`);
-    return;
+    const errorMsg = `No specific Calendar ID found for ${slug}. Falling back to primary (not recommended).`;
+    console.warn(`[Sync ${sourceName}] ⚠️ ${errorMsg}`);
+    // Optional: throw new Error(errorMsg) if you want to explicitly fail
   }
 
   try {
