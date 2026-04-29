@@ -327,13 +327,13 @@ async function startServer() {
         'peraconfort'
       ];
 
-      // Use a Set to ensure unique slugs
+      // Use a Set to ensure unique slugs, preserving the master list order
       const apartments = Array.from(new Set([...masterList, ...apartmentsInDb])).filter(Boolean);
 
       const results: any[] = [];
       const syncApartments = targetSlug ? [targetSlug] : apartments;
 
-      console.log(`[Local Sync] Starting sync for: ${syncApartments.join(', ')}`);
+      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms: ${syncApartments.join(', ')}`);
 
       for (const slug of syncApartments) {
         const normalizedSlug = slug.toLowerCase().trim();
@@ -342,7 +342,8 @@ async function startServer() {
         const keysToTry = [
           normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
           normalizedSlug.replace(/-/g, '_').toUpperCase(),
-          normalizedSlug.toUpperCase()
+          normalizedSlug.toUpperCase(),
+          normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase()
         ];
         
         // Map common aliases
@@ -380,14 +381,16 @@ async function startServer() {
         // Booking.com Sync
         if (!targetSource || targetSource.toLowerCase() === 'booking') {
           if (bookingUrl) {
+            console.log(`[Sync] Found Booking URL for ${slug} using key match`);
             try {
               await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
               roomResults.push({ slug, source: 'Booking', status: 'success' });
             } catch (err: any) {
+              console.error(`[Sync] Booking Error for ${slug}:`, err.message);
               roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
             }
           } else {
-            roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'No Booking URL' });
+            roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'Configurare URL lipsă' });
           }
         }
         
@@ -395,15 +398,21 @@ async function startServer() {
         const hasAirbnbInMaster = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
         if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
           if (airbnbUrl) {
+            console.log(`[Sync] Found Airbnb URL for ${slug}`);
             try {
               await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
               roomResults.push({ slug, source: 'Airbnb', status: 'success' });
             } catch (err: any) {
+              console.error(`[Sync] Airbnb Error for ${slug}:`, err.message);
               roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
             }
           } else if (hasAirbnbInMaster) {
-            roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'No Airbnb URL' });
+            roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'Configurare URL lipsă' });
           }
+        }
+
+        if (roomResults.length === 0) {
+           roomResults.push({ slug, source: 'General', status: 'skipped', message: 'Nicio sursă configurată' });
         }
 
         results.push(...roomResults);
