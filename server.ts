@@ -300,6 +300,7 @@ async function startServer() {
   app.get("/export-ical*", handleIcalExport);
 
   app.get("/api/sync-calendars", async (req, res) => {
+    console.log(`[API] GET /api/sync-calendars - Requested by ${req.ip}`);
     const targetSlug = req.query.slug as string;
     const targetSource = req.query.source as string;
     
@@ -454,7 +455,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.3.0",
+      version: "1.3.2",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,

@@ -1,7 +1,7 @@
 {
   "name": "pera-suites-app",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.2",
   "type": "module",
   "engines": {
     "node": "20.x"
