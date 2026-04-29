@@ -327,16 +327,17 @@ async function startServer() {
         'peraconfort'
       ];
 
-      // Use a Set to ensure unique slugs, preserving the master list order
-      const apartments = Array.from(new Set([...masterList, ...apartmentsInDb])).filter(Boolean);
+      // Use a Set to ensure unique slugs, preserving the master list order, all normalized to lowercase
+      const allSlugs = [...masterList, ...apartmentsInDb].map(s => s.toLowerCase().trim()).filter(Boolean);
+      const apartments = Array.from(new Set(allSlugs));
 
-      const results: any[] = [];
-      const syncApartments = targetSlug ? [targetSlug] : apartments;
-
+      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : apartments;
       console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms: ${syncApartments.join(', ')}`);
 
-      for (const slug of syncApartments) {
+      // Process rooms in parallel to avoid total request timeout
+      const allResults = await Promise.all(syncApartments.map(async (slug) => {
         const normalizedSlug = slug.toLowerCase().trim();
+        const roomResults = [];
         
         // Use a more robust env key mapping
         const keysToTry = [
@@ -359,11 +360,7 @@ async function startServer() {
           'premium-king': 'PREMIUM_KING',
           'deluxe-double': 'DELUXE_DOUBLE',
           'family-standard': 'FAMILY_STANDARD',
-          'family-deluxe': 'FAMILY_DELUXE',
-          'pera-apartments-premium-king': 'PREMIUM_KING',
-          'pera-apartments-deluxe-double': 'DELUXE_DOUBLE',
-          'pera-apartments-family-standard': 'FAMILY_STANDARD',
-          'pera-apartments-family-deluxe': 'FAMILY_DELUXE'
+          'family-deluxe': 'FAMILY_DELUXE'
         };
         
         if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
@@ -376,12 +373,9 @@ async function startServer() {
           if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
         }
 
-        const roomResults = [];
-
         // Booking.com Sync
         if (!targetSource || targetSource.toLowerCase() === 'booking') {
           if (bookingUrl) {
-            console.log(`[Sync] Found Booking URL for ${slug} using key match`);
             try {
               await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
               roomResults.push({ slug, source: 'Booking', status: 'success' });
@@ -398,7 +392,6 @@ async function startServer() {
         const hasAirbnbInMaster = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
         if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
           if (airbnbUrl) {
-            console.log(`[Sync] Found Airbnb URL for ${slug}`);
             try {
               await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
               roomResults.push({ slug, source: 'Airbnb', status: 'success' });
@@ -415,12 +408,14 @@ async function startServer() {
            roomResults.push({ slug, source: 'General', status: 'skipped', message: 'Nicio sursă configurată' });
         }
 
-        results.push(...roomResults);
-      }
+        return roomResults;
+      }));
 
+      const finalResults = allResults.flat();
+      
       res.json({ 
         status: "Sync completed", 
-        results,
+        results: finalResults,
         note: targetSlug ? "Individual sync" : "Full sync"
       });
     } catch (error: any) {
