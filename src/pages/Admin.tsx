@@ -459,11 +459,16 @@ const Dashboard = () => {
     setSyncResults(null);
     try {
       const response = await fetch('/api/sync-calendars');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server returned ${response.status}`);
+      }
       const data = await response.json();
       setSyncResults(data.results || []);
       toast.success("Sincronizare finalizată!");
-    } catch (e) {
-      toast.error("Eroare la sincronizare.");
+    } catch (e: any) {
+      console.error("Sync error:", e);
+      toast.error(`Eroare la sincronizare: ${e.message || 'Eroare necunoscută'}`);
     } finally {
       setSyncing(false);
     }
@@ -481,7 +486,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-12">
       <div className="flex justify-between items-center">
-        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.1.0)</span></h3>
+        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.1.2)</span></h3>
         <button 
           onClick={handleFullSync}
           disabled={syncing}

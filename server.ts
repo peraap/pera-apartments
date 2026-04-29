@@ -348,10 +348,8 @@ async function startServer() {
         console.log(`[Local Sync] Sample keys: ${icalKeys.slice(0, 5).join(', ')}`);
       }
 
-      const finalResults: any[] = [];
-
-      // Sequential processing to be more robust
-      for (const slug of syncApartments) {
+      const initialResults: any[] = [];
+      const syncPromises = syncApartments.map(async (slug) => {
         const normalizedSlug = slug.toLowerCase().trim();
         const roomResults: any[] = [];
         
@@ -388,9 +386,8 @@ async function startServer() {
             if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
           }
 
-          console.log(`[Sync] Evaluated ${slug}: Booking URL: ${bookingUrl ? 'Found' : 'Missing'}, Airbnb URL: ${airbnbUrl ? 'Found' : 'Missing'}`);
           if (!bookingUrl && !airbnbUrl) {
-            console.log(`[Sync] No URLs found for ${slug}. Tried keys: ${keysToTry.join(', ')}`);
+            return [{ slug, source: 'Config', status: 'skipped', message: 'Nicio sursă configurată (Check .env)' }];
           }
 
           // Booking Sync
@@ -403,13 +400,10 @@ async function startServer() {
                 console.error(`[Sync] Booking Error for ${slug}:`, err.message);
                 roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
               }
-            } else {
-              roomResults.push({ slug, source: 'Booking', status: 'skipped', message: 'Configurare lipsă' });
             }
           }
           
           // Airbnb Sync 
-          const shouldHaveAirbnb = slug.includes('peraduo') || slug.includes('peraconfort') || airbnbUrl;
           if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
             if (airbnbUrl) {
               try {
@@ -419,21 +413,21 @@ async function startServer() {
                 console.error(`[Sync] Airbnb Error for ${slug}:`, err.message);
                 roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
               }
-            } else if (shouldHaveAirbnb) {
-              roomResults.push({ slug, source: 'Airbnb', status: 'skipped', message: 'Configurare lipsă' });
             }
           }
 
           if (roomResults.length === 0) {
-            roomResults.push({ slug, source: 'Verificare', status: 'skipped', message: 'Nicio sursă găsită' });
+            roomResults.push({ slug, source: 'Config', status: 'skipped', message: 'Sursă negăsită pentru criteriul selectat' });
           }
         } catch (roomError: any) {
-          console.error(`[Sync] Critical error for ${slug}:`, roomError.message);
+          console.error(`[Sync] Critical room error for ${slug}:`, roomError.message);
           roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
         }
-        
-        finalResults.push(...roomResults);
-      }
+        return roomResults;
+      });
+
+      const resultsNested = await Promise.all(syncPromises);
+      const finalResults = resultsNested.flat();
       
       res.json({ 
         status: "Sync completed", 
@@ -449,7 +443,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.1.0",
+      version: "1.1.2",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,
