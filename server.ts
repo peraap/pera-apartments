@@ -112,6 +112,154 @@ async function startServer() {
 
   app.use(express.json());
 
+  // 1. CORS & Global Middleware
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
+  }));
+
+  // API Routes - Health Check first
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      version: "1.4.0",
+      env: process.env.NODE_ENV,
+      dbInitialized: !!db,
+      adminDbInitialized: !!adminDb,
+      stripeKey: !!process.env.STRIPE_SECRET_KEY,
+      gmailUser: !!process.env.GMAIL_USER,
+      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
+    });
+  });
+
+  // Sync route - Move to top of API section
+  app.get("/api/sync-calendars", async (req, res) => {
+    console.log(`[API] GET /api/sync-calendars - Requested at ${new Date().toISOString()}`);
+    const targetSlug = req.query.slug as string;
+    const targetSource = req.query.source as string;
+    
+    try {
+      // 1. Get apartments from Firestore and merge with master list
+      let apartmentsInDb: string[] = [];
+      try {
+        if (adminDb) {
+          const snapshot = await adminDb.collection('apartments').get();
+          apartmentsInDb = snapshot.docs.map((doc: any) => doc.data().slug);
+        } else if (db) {
+          const snapshot = await getDocs(collection(db, 'apartments'));
+          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
+        }
+      } catch (e) {
+        console.error("[Sync] DB Fetch Error:", e);
+      }
+
+      const masterList = [
+        'apartament-premium-king',
+        'apartament-deluxe-double',
+        'apartament-family-standard',
+        'apartament-family-deluxe',
+        'peraduo',
+        'peraconfort',
+        'premium-king',
+        'deluxe-double',
+        'family-standard',
+        'family-deluxe'
+      ];
+
+      const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
+      const allSlugs = Array.from(new Set([
+        ...masterList,
+        ...dbSlugs
+      ])).filter(Boolean);
+
+      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
+      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms.`);
+      
+      const finalResults: any[] = [];
+      
+      for (const slug of syncApartments) {
+        const normalizedSlug = slug.toLowerCase().trim();
+        const roomResults: any[] = [];
+        
+        try {
+          const baseKey = normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+          const keysToTry = [
+            baseKey,
+            normalizedSlug.replace(/-/g, '_').toUpperCase(),
+            normalizedSlug.toUpperCase(),
+            baseKey.replace('APARTAMENT_', '')
+          ];
+          
+          const mapping: Record<string, string> = {
+            'apartament-premium-king': 'PREMIUM_KING',
+            'apartament-deluxe-double': 'DELUXE_DOUBLE',
+            'apartament-family-standard': 'FAMILY_STANDARD',
+            'apartament-family-deluxe': 'FAMILY_DELUXE',
+            'peraduo': 'PERADUO',
+            'peraconfort': 'PERACONFORT',
+            'premium-king': 'PREMIUM_KING',
+            'deluxe-double': 'DELUXE_DOUBLE',
+            'family-standard': 'FAMILY_STANDARD',
+            'family-deluxe': 'FAMILY_DELUXE'
+          };
+          
+          if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
+
+          let bookingUrl = '';
+          let airbnbUrl = '';
+
+          for (const k of keysToTry) {
+            const bKey = `ICAL_BOOKING_${k}`;
+            const aKey = `ICAL_AIRBNB_${k}`;
+            if (!bookingUrl) bookingUrl = process.env[bKey] || '';
+            if (!airbnbUrl) airbnbUrl = process.env[aKey] || '';
+          }
+
+          if (!bookingUrl && !airbnbUrl) {
+            finalResults.push({ slug, source: 'Config', status: 'skipped', message: 'Lipsește ICAL_BOOKING_... sau ICAL_AIRBNB_... în setările .env' });
+            continue;
+          }
+
+          if (!targetSource || targetSource.toLowerCase() === 'booking') {
+            if (bookingUrl) {
+              try {
+                await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+                roomResults.push({ slug, source: 'Booking', status: 'success' });
+              } catch (err: any) {
+                roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
+              }
+            }
+          }
+          
+          if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
+            if (airbnbUrl) {
+              try {
+                await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+                roomResults.push({ slug, source: 'Airbnb', status: 'success' });
+              } catch (err: any) {
+                roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+              }
+            }
+          }
+
+          if (roomResults.length === 0) {
+            roomResults.push({ slug, source: 'Config', status: 'skipped', message: 'Sursă negăsită pentru criteriul selectat' });
+          }
+        } catch (roomError: any) {
+          roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
+        }
+        
+        finalResults.push(...roomResults);
+      }
+      
+      res.json({ status: "Sync completed", results: finalResults });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // 1. Static Validation & Higher Priority Public Routes
   const handleIcalExport = async (req: any, res: any) => {
     try {
@@ -299,179 +447,10 @@ async function startServer() {
   app.get("/api/export-ical*", handleIcalExport);
   app.get("/export-ical*", handleIcalExport);
 
-  app.get("/api/sync-calendars", async (req, res) => {
-    console.log(`[API] GET /api/sync-calendars - Requested by ${req.ip}`);
-    const targetSlug = req.query.slug as string;
-    const targetSource = req.query.source as string;
-    
-    try {
-      // 1. Get apartments from Firestore and merge with master list
-      let apartmentsInDb: string[] = [];
-      try {
-        if (adminDb) {
-          const snapshot = await adminDb.collection('apartments').get();
-          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
-        } else if (db) {
-          const snapshot = await getDocs(collection(db, 'apartments'));
-          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
-        }
-      } catch (e) {
-        console.error("[Sync] DB Fetch Error:", e);
-      }
+  // Removing duplicate sync-calendars and health check routes as they are now at the top
 
-      const masterList = [
-        'apartament-premium-king',
-        'apartament-deluxe-double',
-        'apartament-family-standard',
-        'apartament-family-deluxe',
-        'peraduo',
-        'peraconfort',
-        'premium-king',
-        'deluxe-double',
-        'family-standard',
-        'family-deluxe'
-      ];
-
-      // Normalize all slugs to lowercase and ensure uniqueness
-      const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
-      const allSlugs = Array.from(new Set([
-        ...masterList,
-        ...dbSlugs
-      ])).filter(Boolean);
-
-      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
-      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms. Slugs: ${syncApartments.join(', ')}`);
-      
-      const allEnvKeys = Object.keys(process.env);
-      const icalKeys = allEnvKeys.filter(k => k.startsWith('ICAL_'));
-      console.log(`[Local Sync] ICAL environment keys found: ${icalKeys.length} keys.`);
-      if (icalKeys.length > 0) {
-        console.log(`[Local Sync] Sample keys: ${icalKeys.slice(0, 5).join(', ')}`);
-      }
-
-      const finalResults: any[] = [];
-      
-      // Sequential processing to avoid hammering APIs and causing timeouts
-      for (const slug of syncApartments) {
-        const normalizedSlug = slug.toLowerCase().trim();
-        const roomResults: any[] = [];
-        
-        try {
-          // Find links in environment variables
-          const baseKey = normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
-          const keysToTry = [
-            baseKey,
-            normalizedSlug.replace(/-/g, '_').toUpperCase(),
-            normalizedSlug.toUpperCase(),
-            baseKey.replace('APARTAMENT_', '')
-          ];
-          
-          const mapping: Record<string, string> = {
-            'apartament-premium-king': 'PREMIUM_KING',
-            'apartament-deluxe-double': 'DELUXE_DOUBLE',
-            'apartament-family-standard': 'FAMILY_STANDARD',
-            'apartament-family-deluxe': 'FAMILY_DELUXE',
-            'peraduo': 'PERADUO',
-            'peraconfort': 'PERACONFORT',
-            'premium-king': 'PREMIUM_KING',
-            'deluxe-double': 'DELUXE_DOUBLE',
-            'family-standard': 'FAMILY_STANDARD',
-            'family-deluxe': 'FAMILY_DELUXE'
-          };
-          
-          if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
-
-          let bookingUrl = '';
-          let airbnbUrl = '';
-
-          for (const k of keysToTry) {
-            const bKey = `ICAL_BOOKING_${k}`;
-            const aKey = `ICAL_AIRBNB_${k}`;
-            if (!bookingUrl) bookingUrl = process.env[bKey] || '';
-            if (!airbnbUrl) airbnbUrl = process.env[aKey] || '';
-          }
-
-          if (!bookingUrl && !airbnbUrl) {
-            finalResults.push({ slug, source: 'Config', status: 'skipped', message: 'Lipsește ICAL_BOOKING_... sau ICAL_AIRBNB_... în setările .env' });
-            continue;
-          }
-
-          // Check for Calendar ID
-          const calIdRaw = process.env[`GOOGLE_CALENDAR_ID_${normalizedSlug.replace(/-/g, '_').toUpperCase()}`];
-          if (!calIdRaw && !process.env.GOOGLE_CALENDAR_IDS_JSON) {
-            console.warn(`[Sync] Warning: Missing specific calendar ID for ${slug}`);
-          }
-
-          // Booking Sync
-          if (!targetSource || targetSource.toLowerCase() === 'booking') {
-            if (bookingUrl) {
-              try {
-                console.log(`[Sync] Booking for ${slug}...`);
-                await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-                roomResults.push({ slug, source: 'Booking', status: 'success' });
-              } catch (err: any) {
-                console.error(`[Sync] Booking Error for ${slug}:`, err.message);
-                roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
-              }
-            }
-          }
-          
-          // Airbnb Sync 
-          if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
-            if (airbnbUrl) {
-              try {
-                console.log(`[Sync] Airbnb for ${slug}...`);
-                await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-                roomResults.push({ slug, source: 'Airbnb', status: 'success' });
-              } catch (err: any) {
-                console.error(`[Sync] Airbnb Error for ${slug}:`, err.message);
-                roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
-              }
-            }
-          }
-
-          if (roomResults.length === 0) {
-            roomResults.push({ slug, source: 'Config', status: 'skipped', message: 'Sursă negăsită pentru criteriul selectat' });
-          }
-        } catch (roomError: any) {
-          console.error(`[Sync] Critical room error for ${slug}:`, roomError.message);
-          roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
-        }
-        
-        finalResults.push(...roomResults);
-      }
-      
-      res.json({ 
-        status: "Sync completed", 
-        results: finalResults,
-        note: targetSlug ? "Individual sync" : "Full sync"
-      });
-    } catch (error: any) {
-      console.error(`[Local Sync] Critical Error:`, error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      version: "1.3.2",
-      env: process.env.NODE_ENV,
-      dbInitialized: !!db,
-      adminDbInitialized: !!adminDb,
-      stripeKey: !!process.env.STRIPE_SECRET_KEY,
-      gmailUser: !!process.env.GMAIL_USER,
-      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
-    });
-  });
-
-  // 1. CORS & JSON Parsing (Moved up to ensure all routes benefit)
-  app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
-  }));
+  // Cors is now handled above manually in startServer
+  // Removing duplicate or misplaced middleware block
 
   // Webhook needs raw body for signature verification
   app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
