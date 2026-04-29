@@ -477,9 +477,11 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                    res.status === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    res.status === 'success' ? 'bg-green-500/20 text-green-400' : 
+                    res.status === 'skipped' ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-red-500/20 text-red-400'
                   }`}>
-                    {res.status}
+                    {res.status === 'skipped' ? `${res.status}: ${res.message}` : res.status}
                   </span>
                 </div>
               </div>

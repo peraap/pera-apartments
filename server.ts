@@ -137,6 +137,7 @@ async function startServer() {
       });
 
       if (adminDb || db) {
+        // 1. Fetch Bookings
         let querySnapshot;
         try {
           if (adminDb) {
@@ -150,30 +151,44 @@ async function startServer() {
             querySnapshot = await getDocs(q);
           }
         } catch (fetchError: any) {
-          console.error("[iCal Export] Fetch failed:", fetchError.message);
-          // Create a mock snapshot that does nothing when iterated
+          console.error("[iCal Export] Bookings fetch failed:", fetchError.message);
           querySnapshot = { forEach: () => {} };
         }
         
+        // 2. Fetch Manual Blocks
+        let blocksSnapshot;
+        try {
+          if (adminDb) {
+            blocksSnapshot = await adminDb.collection('manual_blocks').get();
+          } else {
+            blocksSnapshot = await getDocs(collection(db, 'manual_blocks'));
+          }
+        } catch (fetchBlocksError: any) {
+          console.error("[iCal Export] Blocks fetch failed:", fetchBlocksError.message);
+          blocksSnapshot = { forEach: () => {} };
+        }
+
         let hasEvents = false;
+        const searchSlug = slug.toLowerCase();
+        const searchName = searchSlug.replace(/-/g, ' ');
+
+        // Explicit mapping for common user slugs
+        const slugAliases: Record<string, string[]> = {
+          'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
+          'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
+          'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe'],
+          'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard'],
+          'peraduo': ['5', 'pera-duo', 'peraduo'],
+          'peraconfort': ['6', 'pera-confort', 'peraconfort']
+        };
+
+        const aliases = slugAliases[searchSlug] || [];
+
+        // Process Bookings
         querySnapshot.forEach((doc: any) => {
           const booking = doc.data();
           const aptName = (booking.apartmentName || '').toLowerCase();
           const aptId = (booking.apartmentId || '').toLowerCase();
-          const searchSlug = slug.toLowerCase();
-          const searchName = searchSlug.replace(/-/g, ' ');
-
-          // Explicit mapping for common user slugs
-          const slugAliases: Record<string, string[]> = {
-            'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
-            'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
-            'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe'],
-            'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard'],
-            'peraduo': ['5', 'pera-duo', 'peraduo'],
-            'peraconfort': ['6', 'pera-confort', 'peraconfort']
-          };
-
-          const aliases = slugAliases[searchSlug] || [];
           
           const isDirectIdMatch = aptId === searchSlug || aliases.includes(aptId);
           const isNameMatch = aptName.includes(searchName) || aliases.some(alias => aptName.includes(alias));
@@ -182,20 +197,65 @@ async function startServer() {
           if ((isDirectIdMatch || isNameMatch || isShortNameMatch) && booking.checkIn && booking.checkOut) {
             hasEvents = true;
             calendar.createEvent({
-              id: doc.id,
+              id: `booking-${doc.id}`,
               start: new Date(booking.checkIn),
               end: new Date(booking.checkOut),
               allDay: true,
               summary: 'Rezervare Site (Pera Apartments)',
               description: `Oaspete: ${booking.guestName}`,
-              location: 'Pera Apartments, Cristian, Brasov',
-              url: 'https://peraapartments.ro',
+              busystatus: ICalEventBusyStatus.BUSY
+            });
+          }
+        });
+
+        // Process Manual Blocks
+        blocksSnapshot.forEach((doc: any) => {
+          const block = doc.data();
+          const blockAptId = (block.apartmentId || '').trim().toLowerCase();
+          
+          const isMatch = blockAptId === 'all' || 
+                          blockAptId === 'toate' ||
+                          blockAptId === searchSlug || 
+                          searchSlug.includes(blockAptId.replace(/ /g, '-')) ||
+                          blockAptId.includes(searchSlug.replace(/-/g, ' '));
+
+          if (isMatch && block.startDate && block.endDate) {
+            hasEvents = true;
+            calendar.createEvent({
+              id: `block-${doc.id}`,
+              start: new Date(block.startDate),
+              end: new Date(block.endDate),
+              allDay: true,
+              summary: 'Blocaj Manual (Pera Apartments)',
+              description: block.reason || 'Mentenanță',
               busystatus: ICalEventBusyStatus.BUSY
             });
           }
         });
 
         // Add a placeholder event if empty to pass validation
+        // 3. Fetch External Blocked Dates (Synced from Airbnb/Booking/Google)
+        try {
+          const externalDates = await getApartmentBlockedDates(slug);
+          externalDates.forEach((dateStr: string) => {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d, 12, 0, 0);
+            
+            hasEvents = true;
+            calendar.createEvent({
+              id: `external-${slug}-${dateStr}`,
+              start: dateObj,
+              end: dateObj,
+              allDay: true,
+              summary: 'Occupied (External Sync)',
+              description: 'Imported from external calendar feed',
+              busystatus: ICalEventBusyStatus.BUSY
+            });
+          });
+        } catch (extError) {
+          console.error("[iCal Export] External dates fetch failed:", extError);
+        }
+
         if (!hasEvents) {
           const startDate = new Date();
           startDate.setHours(0, 0, 0, 0);
@@ -244,14 +304,28 @@ async function startServer() {
     const targetSource = req.query.source as string;
     
     try {
-      const apartments = [
-        'apartament-premium-king',
-        'apartament-deluxe-double',
-        'apartament-family-standard',
-        'apartament-family-deluxe',
-        'peraduo',
-        'peraconfort'
-      ];
+      // 1. Get apartments from Firestore instead of hardcoded list
+      let apartments: string[] = [];
+      try {
+        if (adminDb) {
+          const snapshot = await adminDb.collection('apartments').get();
+          apartments = snapshot.docs.map(doc => doc.data().slug);
+        } else if (db) {
+          const snapshot = await getDocs(collection(db, 'apartments'));
+          apartments = snapshot.docs.map(doc => doc.data().slug);
+        }
+      } catch (e) {
+        console.error("[Sync] Error fetching apartments from DB:", e);
+        // Fallback to minimal list if DB fails
+        apartments = [
+          'apartament-premium-king',
+          'apartament-deluxe-double',
+          'apartament-family-standard',
+          'apartament-family-deluxe',
+          'peraduo',
+          'peraconfort'
+        ];
+      }
 
       const results: any[] = [];
       const syncApartments = targetSlug ? [targetSlug] : apartments;
@@ -259,36 +333,71 @@ async function startServer() {
       console.log(`[Local Sync] Starting sync for: ${syncApartments.join(', ')}`);
 
       for (const slug of syncApartments) {
-        if (!apartments.includes(slug)) {
-          results.push({ slug, status: "ignored (invalid slug)" });
-          continue;
+        const normalizedSlug = slug.toLowerCase();
+        
+        // Use a more robust env key mapping
+        const keysToTry = [
+          normalizedSlug.replace(/-/g, '_').replace('apartament_', '').toUpperCase(),
+          normalizedSlug.replace(/-/g, '_').toUpperCase(),
+          normalizedSlug.toUpperCase()
+        ];
+        
+        // Map common aliases
+        const mapping: Record<string, string> = {
+          'apartament-premium-king': 'PREMIUM_KING',
+          'apartament-deluxe-double': 'DELUXE_DOUBLE',
+          'apartament-family-standard': 'FAMILY_STANDARD',
+          'apartament-family-deluxe': 'FAMILY_DELUXE',
+          'peraduo': 'PERADUO',
+          'peraconfort': 'PERACONFORT',
+          'pera-duo': 'PERADUO',
+          'pera-confort': 'PERACONFORT'
+        };
+        
+        if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
+
+        let bookingUrl = '';
+        let airbnbUrl = '';
+
+        for (const k of keysToTry) {
+          if (!bookingUrl) bookingUrl = process.env[`ICAL_BOOKING_${k}`] || '';
+          if (!airbnbUrl) airbnbUrl = process.env[`ICAL_AIRBNB_${k}`] || '';
         }
 
-        const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
-        const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
-        const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
-
-        if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
-          console.log(`[Local Sync] Syncing Booking for ${slug}`);
-          try {
-            await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-            results.push({ slug, source: 'Booking', status: 'success' });
-          } catch (err: any) {
-            results.push({ slug, source: 'Booking', status: 'error', message: err.message });
+        // Booking.com Sync
+        if (!targetSource || targetSource.toLowerCase() === 'booking') {
+          if (bookingUrl) {
+            console.log(`[Local Sync] Syncing Booking for ${slug}`);
+            try {
+              await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+              results.push({ slug, source: 'Booking', status: 'success' });
+            } catch (err: any) {
+              results.push({ slug, source: 'Booking', status: 'error', message: err.message });
+            }
+          } else {
+            results.push({ slug, source: 'Booking', status: 'skipped', message: 'No URL' });
           }
         }
         
-        if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
-          console.log(`[Local Sync] Syncing Airbnb for ${slug}`);
-          try {
-            await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-            results.push({ slug, source: 'Airbnb', status: 'success' });
-          } catch (err: any) {
-            results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+        // Airbnb Sync
+        if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
+          if (airbnbUrl) {
+            console.log(`[Local Sync] Syncing Airbnb for ${slug}`);
+            try {
+              await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+              results.push({ slug, source: 'Airbnb', status: 'success' });
+            } catch (err: any) {
+              results.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
+            }
+          } else {
+            // Only report skipped Airbnb for those that usually have it (optional)
+            if (slug.includes('peraduo') || slug.includes('peraconfort')) {
+              results.push({ slug, source: 'Airbnb', status: 'skipped', message: 'No URL' });
+            }
           }
         }
       }
-      
+
       res.json({ 
         status: "Sync completed", 
         results,
