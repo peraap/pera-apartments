@@ -34,13 +34,11 @@ try {
   if (dbId === '(default)') {
     adminDb = admin.firestore();
   } else {
-    // @ts-ignore - The types might be outdated but the functionality exists in newer versions
-    adminDb = admin.firestore().service.firestore(dbId);
-    // Alternatively, if the SDK is new enough:
     try {
-      // @ts-ignore
+      // In firebase-admin v10+, specify database via first argument
       adminDb = admin.firestore(dbId);
     } catch (e) {
+      console.warn(`[Firebase Admin] Could not initialize with dbId ${dbId}, falling back to default:`, e.message);
       adminDb = admin.firestore();
     }
   }

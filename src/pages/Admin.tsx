@@ -1428,8 +1428,8 @@ export default function Admin() {
   }
 
   if (!user || (profile?.role !== 'admin' && user?.email !== 'petreandrei1979@gmail.com')) {
-    console.log('Admin Page - Redirecting to /auth');
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    console.log('Admin Page - Redirecting to /login');
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   const sidebarLinks = [

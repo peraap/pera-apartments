@@ -111,6 +111,12 @@ async function startServer() {
   });
 
   app.use(express.json());
+  
+  // Debug Logging Middleware
+  app.use((req, res, next) => {
+    console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    next();
+  });
 
   // 1. CORS & Global Middleware
   app.use(cors({
@@ -799,7 +805,10 @@ async function startServer() {
   });
 
   // 3. VITE / STATIC FILES (Must be after API)
+  const distPath = path.join(process.cwd(), 'dist');
+  
   if (process.env.NODE_ENV !== "production") {
+    console.log("[Server] Configuring Vite middleware for development");
     const vite = await createViteServer({
       root: process.cwd(),
       server: { 
@@ -809,11 +818,21 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+    
+    // Explicitly handle SPA fallback in dev if Vite middleware misses it for some reason
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      console.log(`[Dev Fallback] Serving index.html for ${req.path}`);
+      res.sendFile(path.join(process.cwd(), 'index.html'));
+    });
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    console.log("[Server] Configuring static files for production");
     // In production, everything from public is already in dist
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: "API route not found" });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
