@@ -62,52 +62,9 @@ async function startServer() {
 
   app.use(express.json());
   
-  // Debug Logging Middleware
-  app.use((req, res, next) => {
-    // Skip logging for internal Vite assets/sources to reduce noise
-    const isAsset = req.path.startsWith('/src/') || 
-                     req.path.startsWith('/node_modules/') || 
-                     req.path.startsWith('/@') || 
-                     req.path.includes('.tsx') || 
-                     req.path.includes('.ts');
-
-    if (!isAsset) {
-      if (req.path.startsWith('/admin')) {
-        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      } else {
-        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      }
-    }
-    next();
-  });
-
-  // 1. CORS & Global Middleware
-  app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
-  }));
-
-  // API Routes - Health Check first
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      version: "1.4.2",
-      env: process.env.NODE_ENV,
-      dbInitialized: !!db,
-      adminDbInitialized: !!adminDb,
-      stripeKey: !!process.env.STRIPE_SECRET_KEY,
-      gmailUser: !!process.env.GMAIL_USER,
-      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-      calendarJson: !!process.env.GOOGLE_CALENDAR_IDS_JSON,
-      sheetsId: !!process.env.GOOGLE_SHEET_ID
-    });
-  });
-
   // Sync routes - High priority
   const handleSync = async (req: express.Request, res: express.Response) => {
-    console.log(`[API-SYNC-START] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    console.log(`[API-SYNC-HIT] ${req.method} ${req.path} - Processing sync request`);
     console.log(`[API-SYNC-QUERY] ${JSON.stringify(req.query)}`);
     const targetSlug = req.query.slug as string;
     const targetSource = req.query.source as string;
@@ -212,7 +169,52 @@ async function startServer() {
     }
   };
 
-  app.all("/api/sync*", handleSync);
+  app.all("/api/sync", handleSync);
+  app.all("/api/sync-calendar", handleSync);
+  app.all("/api/sync-calendars", handleSync);
+
+  // Debug Logging Middleware
+  app.use((req, res, next) => {
+    // Skip logging for internal Vite assets/sources to reduce noise
+    const isAsset = req.path.startsWith('/src/') || 
+                     req.path.startsWith('/node_modules/') || 
+                     req.path.startsWith('/@') || 
+                     req.path.includes('.tsx') || 
+                     req.path.includes('.ts');
+
+    if (!isAsset) {
+      if (req.path.startsWith('/admin')) {
+        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      } else {
+        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      }
+    }
+    next();
+  });
+
+  // 1. CORS & Global Middleware
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
+  }));
+
+  // API Routes - Health Check first
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      version: "1.4.2",
+      env: process.env.NODE_ENV,
+      dbInitialized: !!db,
+      adminDbInitialized: !!adminDb,
+      stripeKey: !!process.env.STRIPE_SECRET_KEY,
+      gmailUser: !!process.env.GMAIL_USER,
+      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      calendarJson: !!process.env.GOOGLE_CALENDAR_IDS_JSON,
+      sheetsId: !!process.env.GOOGLE_SHEET_ID
+    });
+  });
 
   // 1. Static Validation & Higher Priority Public Routes
   const handleIcalExport = async (req: any, res: any) => {

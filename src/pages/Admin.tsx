@@ -458,7 +458,7 @@ const Dashboard = () => {
     setSyncing(true);
     setSyncResults(null);
     try {
-      const response = await fetch('/api/sync-calendars');
+      const response = await fetch(`/api/sync-calendars?t=${Date.now()}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Server returned ${response.status}`);
