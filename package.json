@@ -1,7 +1,7 @@
 {
   "name": "pera-suites-app",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.2",
   "type": "module",
   "engines": {
     "node": "20.x"
@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && echo 'Deployment build successful' > dist/deploy_status.txt",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

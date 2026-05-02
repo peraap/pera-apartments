@@ -13,36 +13,50 @@ const clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '
 
 export async function getBlockedDatesFromIcal(url: string): Promise<string[]> {
   try {
-    const response = await axios.get(url);
+    console.log(`[iCal Fetch] Fetching from: ${url.substring(0, 70)}...`);
+    const response = await axios.get(url, { 
+      timeout: 15000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (PeraApartments-Sync/1.0)' }
+    });
+    console.log(`[iCal Fetch] Success. Status: ${response.status}. Length: ${response.data.length}`);
     const data = ical.parseICS(response.data);
     const blockedDates: Set<string> = new Set();
     const today = startOfDay(new Date());
 
+    let count = 0;
     for (const k in data) {
       if (data.hasOwnProperty(k)) {
         const ev = data[k];
         if (ev.type === 'VEVENT' && ev.start && ev.end) {
-          const start = new Date(ev.start);
-          const end = new Date(ev.end);
+          const start = startOfDay(new Date(ev.start));
+          const end = startOfDay(new Date(ev.end));
 
           // Only care about future or current bookings
-          if (isAfter(end, today)) {
-            const days = eachDayOfInterval({
-              start: start,
-              end: end
-            });
+          if (isAfter(end, today) || format(end, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+            try {
+              const range = eachDayOfInterval({
+                start: start,
+                end: end
+              });
+              
+              // Exclude checkout day
+              const days = range.length > 1 ? range.slice(0, -1) : range;
 
-            days.forEach(day => {
-              blockedDates.add(format(day, 'yyyy-MM-dd'));
-            });
+              days.forEach(day => {
+                blockedDates.add(format(day, 'yyyy-MM-dd'));
+              });
+              count++;
+            } catch (err) {
+              console.warn(`[iCal Sync] Interval error for event:`, err);
+            }
           }
         }
       }
     }
-
+    console.log(`[iCal Fetch] Parsed ${count} future events. Unique blocked dates: ${blockedDates.size}`);
     return Array.from(blockedDates);
-  } catch (error) {
-    console.error(`Error fetching iCal from ${url}:`, error);
+  } catch (error: any) {
+    console.error(`Error fetching iCal from ${url}:`, error.message);
     return [];
   }
 }
@@ -89,10 +103,8 @@ export async function getApartmentBlockedDates(slug: string): Promise<string[]> 
 
   console.log(`[iCal Sync] Syncing ${normalizedSlug}. Booking: ${!!bookingUrl}, Airbnb: ${!!airbnbUrl}`);
 
-  // Also fetch from Google Calendar if configured
-  const googleCalendarPromise = process.env.GOOGLE_CALENDAR_ID ? 
-    getBlockedDatesFromCalendar(slug) : 
-    Promise.resolve([]);
+  // Fetch all in parallel
+  const googleCalendarPromise = getBlockedDatesFromCalendar(slug);
 
   const results: string[][] = await Promise.all([
     bookingUrl ? getBlockedDatesFromIcal(bookingUrl) : Promise.resolve([]),
@@ -100,20 +112,44 @@ export async function getApartmentBlockedDates(slug: string): Promise<string[]> 
     googleCalendarPromise
   ]);
 
+  const bDates = results[0];
+  const aDates = results[1];
+  const gDates = results[2];
+
+  console.log(`[iCal Sync] ${normalizedSlug} Results - Booking: ${bDates.length}, Airbnb: ${aDates.length}, Google: ${gDates.length}`);
+
   // 3. Check manual blocks in Firestore
   let manualDates: string[] = [];
   try {
-    const normalizedSlug = slug.trim().toLowerCase();
+    const normalizedSlugForManual = slug.trim().toLowerCase();
+    let snapshot: any = null;
     
+    // Try Admin SDK first
     if (adminDb) {
-      const snapshot = await adminDb.collection('manual_blocks').get();
-      snapshot.forEach((doc: any) => {
+      try {
+        snapshot = await adminDb.collection('manual_blocks').get();
+        console.log(`[iCal Sync] Fetched ${snapshot.size} manual blocks via Admin SDK`);
+      } catch (adminErr: any) {
+        if (adminErr.message?.includes('PERMISSION_DENIED')) {
+          console.warn("[iCal Sync] Admin SDK restricted (Permission Denied). Using failover Client SDK.");
+        } else {
+          console.warn("[iCal Sync] Admin SDK failed, falling back to Client SDK:", adminErr.message);
+        }
+        snapshot = null; 
+      }
+    }
+    
+    // If Admin SDK failed or is missing, use Client SDK
+    if (!snapshot) {
+      const querySnapshot = await getDocs(collection(clientDb, 'manual_blocks'));
+      console.log(`[iCal Sync] Fetched ${querySnapshot.size} manual blocks via Client SDK`);
+      
+      querySnapshot.forEach((doc) => {
         const block = doc.data();
         const blockAptId = (block.apartmentId || '').trim().toLowerCase();
-        
-        const isMatch = blockAptId === normalizedSlug || 
-                        normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
-                        blockAptId.includes(normalizedSlug.replace(/-/g, ' '));
+        const isMatch = blockAptId === normalizedSlugForManual || 
+                        normalizedSlugForManual.includes(blockAptId.replace(/ /g, '-')) ||
+                        blockAptId.includes(normalizedSlugForManual.replace(/-/g, ' '));
 
         if (isMatch && block.startDate && block.endDate) {
           try {
@@ -126,15 +162,13 @@ export async function getApartmentBlockedDates(slug: string): Promise<string[]> 
         }
       });
     } else {
-      // Fallback: Use client JS SDK (works in Node.js)
-      const querySnapshot = await getDocs(collection(clientDb, 'manual_blocks'));
-      querySnapshot.forEach((doc) => {
+      // Process Admin SDK snapshot
+      snapshot.forEach((doc: any) => {
         const block = doc.data();
         const blockAptId = (block.apartmentId || '').trim().toLowerCase();
-        
-        const isMatch = blockAptId === normalizedSlug || 
-                        normalizedSlug.includes(blockAptId.replace(/ /g, '-')) ||
-                        blockAptId.includes(normalizedSlug.replace(/-/g, ' '));
+        const isMatch = blockAptId === normalizedSlugForManual || 
+                        normalizedSlugForManual.includes(blockAptId.replace(/ /g, '-')) ||
+                        blockAptId.includes(normalizedSlugForManual.replace(/-/g, ' '));
 
         if (isMatch && block.startDate && block.endDate) {
           try {

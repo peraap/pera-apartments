@@ -115,6 +115,7 @@ export async function getBlockedDatesFromCalendar(slug: string): Promise<string[
 
   const calendarId = await getCalendarIdForSlug(slug);
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const nextYear = new Date();
   nextYear.setFullYear(today.getFullYear() + 1);
 
@@ -132,25 +133,39 @@ export async function getBlockedDatesFromCalendar(slug: string): Promise<string[
     const blockedDates: Set<string> = new Set();
 
     events.forEach(event => {
+      const summary = event.summary || 'Blocked';
       // Since it's a dedicated calendar for this room, we block ALL events found in it
       if (event.start?.date && event.end?.date) {
         let current = new Date(event.start.date);
         const end = new Date(event.end.date);
+        console.log(`[Google Calendar] Processing All-Day event: "${summary}" (${event.start.date} to ${event.end.date})`);
         while (current < end) {
-          blockedDates.add(current.toISOString().split('T')[0]);
+          const dateStr = current.toISOString().split('T')[0];
+          blockedDates.add(dateStr);
           current.setDate(current.getDate() + 1);
         }
       } else if (event.start?.dateTime && event.end?.dateTime) {
         let current = new Date(event.start.dateTime);
         const end = new Date(event.end.dateTime);
-        while (current <= end) {
-          blockedDates.add(current.toISOString().split('T')[0]);
-          current.setDate(current.getDate() + 1);
+        console.log(`[Google Calendar] Processing Timed event: "${summary}" (${event.start.dateTime} to ${event.end.dateTime})`);
+        
+        // Use a safer day-by-day addition
+        const tempStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+        const tempEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        
+        let iter = new Date(tempStart);
+        while (iter < tempEnd) {
+          blockedDates.add(iter.toISOString().split('T')[0]);
+          iter.setDate(iter.getDate() + 1);
         }
+        // If it starts late or ends early on a day, we might need more nuanced logic, 
+        // but for a rental calendar, if there's a booking, that night is blocked.
       }
     });
 
-    return Array.from(blockedDates);
+    const finalDates = Array.from(blockedDates);
+    console.log(`[Google Calendar] Total blocked dates found for ${slug}: ${finalDates.length}`);
+    return finalDates;
   } catch (error) {
     console.error(`Error fetching events from Google Calendar (${calendarId}):`, error);
     return [];
@@ -178,7 +193,10 @@ export async function syncExternalIcalToGoogle(slug: string, url: string, source
 
   try {
     console.log(`[Sync ${sourceName}] Fetching ical from: ${url}`);
-    const response = await axios.get(url, { timeout: 8000 });
+    const response = await axios.get(url, { 
+      timeout: 15000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (PeraApartments-Sync/1.0)' }
+    });
     const data = icalParser.parseICS(response.data);
     const today = new Date();
     today.setHours(0, 0, 0, 0);

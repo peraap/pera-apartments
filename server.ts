@@ -60,63 +60,23 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Maintenance Mode Middleware - CRITICAL: Must be at the very top
-  app.use((req, res, next) => {
-    // Default to false unless explicitly set to true
-    const isMaintenance = process.env.MAINTENANCE_MODE === 'true'; 
-    const isPublicApi = req.path.startsWith('/api/health') || 
-                        req.path.includes('export-ical') ||
-                        req.path.includes('api/ical') ||
-                        req.path.includes('.ics');
-    
-    if (isMaintenance && !isPublicApi) {
-      if (req.path.startsWith('/api/')) {
-        return res.status(503).json({ error: "Site-ul este în mentenanță." });
-      }
-      
-      return res.send(`
-        <!DOCTYPE html>
-        <html lang="ro">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Mentenanță - Pera Apartments</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-            <style>
-                body { font-family: 'Inter', sans-serif; }
-            </style>
-        </head>
-        <body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
-            <div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-gray-100">
-                <div class="mb-6 inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                </div>
-                <h1 class="text-2xl font-bold text-gray-900 mb-4">Site în mentenanță</h1>
-                <p class="text-gray-600 mb-8">
-                    Sistemul de rezervări este temporar oprit pentru actualizări. Ne cerem scuze pentru inconvenient!
-                </p>
-                <div class="pt-6 border-t border-gray-100 text-sm text-gray-400">
-                    Vom reveni curând.
-                </div>
-            </div>
-        </body>
-        </html>
-      `);
-    }
-    next();
-  });
-
   app.use(express.json());
   
   // Debug Logging Middleware
   app.use((req, res, next) => {
-    if (req.path.startsWith('/admin')) {
-      console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-    } else {
-      console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    // Skip logging for internal Vite assets/sources to reduce noise
+    const isAsset = req.path.startsWith('/src/') || 
+                     req.path.startsWith('/node_modules/') || 
+                     req.path.startsWith('/@') || 
+                     req.path.includes('.tsx') || 
+                     req.path.includes('.ts');
+
+    if (!isAsset) {
+      if (req.path.startsWith('/admin')) {
+        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      } else {
+        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      }
     }
     next();
   });
@@ -132,36 +92,49 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.4.0",
+      version: "1.4.2",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,
       stripeKey: !!process.env.STRIPE_SECRET_KEY,
       gmailUser: !!process.env.GMAIL_USER,
       gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
+      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      calendarJson: !!process.env.GOOGLE_CALENDAR_IDS_JSON,
+      sheetsId: !!process.env.GOOGLE_SHEET_ID
     });
   });
 
-  // Sync route - Move to top of API section
-  app.get("/api/sync-calendars", async (req, res) => {
-    console.log(`[API] GET /api/sync-calendars - Requested at ${new Date().toISOString()}`);
+  // Sync routes - High priority
+  const handleSync = async (req: express.Request, res: express.Response) => {
+    console.log(`[API-SYNC-START] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    console.log(`[API-SYNC-QUERY] ${JSON.stringify(req.query)}`);
     const targetSlug = req.query.slug as string;
     const targetSource = req.query.source as string;
     
     try {
-      // 1. Get apartments from Firestore and merge with master list
       let apartmentsInDb: string[] = [];
       try {
         if (adminDb) {
-          const snapshot = await adminDb.collection('apartments').get();
-          apartmentsInDb = snapshot.docs.map((doc: any) => doc.data().slug);
-        } else if (db) {
+          try {
+            const snapshot = await adminDb.collection('apartments').get();
+            apartmentsInDb = snapshot.docs.map((doc: any) => doc.data().slug);
+          } catch (adminErr: any) {
+            if (adminErr.message?.includes('PERMISSION_DENIED')) {
+              console.warn("[Sync] Admin SDK restricted (Permission Denied). Using failover Client SDK.");
+            } else {
+              console.error("[Sync] Admin SDK fetch failure:", adminErr.message);
+            }
+          }
+        }
+        
+        // If Admin SDK didn't provide results, try Client SDK
+        if (apartmentsInDb.length === 0 && db) {
           const snapshot = await getDocs(collection(db, 'apartments'));
           apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
         }
-      } catch (e) {
-        console.error("[Sync] DB Fetch Error:", e);
+      } catch (e: any) {
+        console.error("[Sync] DB Fetch Error (Final):", e.message);
       }
 
       const masterList = [
@@ -178,29 +151,17 @@ async function startServer() {
       ];
 
       const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
-      const allSlugs = Array.from(new Set([
-        ...masterList,
-        ...dbSlugs
-      ])).filter(Boolean);
-
+      const allSlugs = Array.from(new Set([...masterList, ...dbSlugs])).filter(Boolean);
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
-      console.log(`[Local Sync] Starting sync for ${syncApartments.length} rooms.`);
+      
+      console.log(`[API-SYNC] Target rooms: ${syncApartments.join(', ')}`);
       
       const finalResults: any[] = [];
-      
       for (const slug of syncApartments) {
         const normalizedSlug = slug.toLowerCase().trim();
         const roomResults: any[] = [];
         
         try {
-          const baseKey = normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
-          const keysToTry = [
-            baseKey,
-            normalizedSlug.replace(/-/g, '_').toUpperCase(),
-            normalizedSlug.toUpperCase(),
-            baseKey.replace('APARTAMENT_', '')
-          ];
-          
           const mapping: Record<string, string> = {
             'apartament-premium-king': 'PREMIUM_KING',
             'apartament-deluxe-double': 'DELUXE_DOUBLE',
@@ -214,60 +175,44 @@ async function startServer() {
             'family-deluxe': 'FAMILY_DELUXE'
           };
           
-          if (mapping[normalizedSlug]) keysToTry.unshift(mapping[normalizedSlug]);
-
-          let bookingUrl = '';
-          let airbnbUrl = '';
-
-          for (const k of keysToTry) {
-            const bKey = `ICAL_BOOKING_${k}`;
-            const aKey = `ICAL_AIRBNB_${k}`;
-            if (!bookingUrl) bookingUrl = process.env[bKey] || '';
-            if (!airbnbUrl) airbnbUrl = process.env[aKey] || '';
-          }
+          const baseKey = mapping[normalizedSlug] || normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+          const bookingUrl = process.env[`ICAL_BOOKING_${baseKey}`] || '';
+          const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`] || '';
 
           if (!bookingUrl && !airbnbUrl) {
-            finalResults.push({ slug, source: 'Config', status: 'skipped', message: 'Lipsește ICAL_BOOKING_... sau ICAL_AIRBNB_... în setările .env' });
+            console.log(`[Sync] ${slug} - NO ICAL URLs found for ${baseKey}`);
+            finalResults.push({ slug, source: 'Config', status: 'skipped', message: `No ICAL URLs for ${baseKey}` });
             continue;
           }
 
-          if (!targetSource || targetSource.toLowerCase() === 'booking') {
-            if (bookingUrl) {
-              try {
-                await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-                roomResults.push({ slug, source: 'Booking', status: 'success' });
-              } catch (err: any) {
-                roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message });
-              }
-            }
+          if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
+            try {
+              await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+              roomResults.push({ slug, source: 'Booking', status: 'success' });
+            } catch (err: any) { roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message }); }
           }
           
-          if (!targetSource || targetSource.toLowerCase() === 'airbnb') {
-            if (airbnbUrl) {
-              try {
-                await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-                roomResults.push({ slug, source: 'Airbnb', status: 'success' });
-              } catch (err: any) {
-                roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message });
-              }
-            }
-          }
-
-          if (roomResults.length === 0) {
-            roomResults.push({ slug, source: 'Config', status: 'skipped', message: 'Sursă negăsită pentru criteriul selectat' });
+          if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
+            try {
+              await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+              roomResults.push({ slug, source: 'Airbnb', status: 'success' });
+            } catch (err: any) { roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message }); }
           }
         } catch (roomError: any) {
           roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
         }
-        
         finalResults.push(...roomResults);
       }
-      
-      res.json({ status: "Sync completed", results: finalResults });
+      console.log(`[API-SYNC-END] Completed ${finalResults.length} operations`);
+      // If we're here, we MUST return something.
+      return res.json({ status: "Sync completed", results: finalResults });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[API-SYNC] Fatal Error:", error);
+      return res.status(500).json({ error: error.message });
     }
-  });
+  };
+
+  app.all("/api/sync*", handleSync);
 
   // 1. Static Validation & Higher Priority Public Routes
   const handleIcalExport = async (req: any, res: any) => {
@@ -303,13 +248,15 @@ async function startServer() {
               .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
               .get();
           } else {
-            console.log("[iCal Export] Using Client SDK for Firestore access");
-            const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
-            querySnapshot = await getDocs(q);
+            console.log("[iCal Export] No Admin SDK, using Client SDK");
+            throw new Error("ADMIN_MISSING");
           }
         } catch (fetchError: any) {
-          console.error("[iCal Export] Bookings fetch failed:", fetchError.message);
-          querySnapshot = { forEach: () => {} };
+          if (fetchError.message !== "ADMIN_MISSING") {
+            console.warn("[iCal Export] Admin SDK fetch restricted/failed, using Client SDK:", fetchError.message);
+          }
+          const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
+          querySnapshot = await getDocs(q);
         }
         
         // 2. Fetch Manual Blocks
@@ -384,7 +331,7 @@ async function startServer() {
               end: new Date(block.endDate),
               allDay: true,
               summary: 'Blocaj Manual (Pera Apartments)',
-              description: block.reason || 'Mentenanță',
+              description: block.reason || 'Blocaj Manual',
               busystatus: ICalEventBusyStatus.BUSY
             });
           }
@@ -807,6 +754,13 @@ async function startServer() {
     }
   });
 
+  // Catch-all API logger for debugging 404s
+  app.all("/api/*", (req, res, next) => {
+    // If we're here, it means no previous /api route matched
+    console.warn(`[API-404] No match found for ${req.method} ${req.path}`);
+    next();
+  });
+
   // 3. VITE / STATIC FILES (Must be after API)
   const distPath = path.join(process.cwd(), 'dist');
   
@@ -867,16 +821,29 @@ async function startServer() {
       'peraconfort'
     ];
 
-    for (const slug of apartments) {
-      const envKey = slug.replace(/-/g, '_').toUpperCase().replace('APARTAMENT_', '');
-      const bookingUrl = process.env[`ICAL_BOOKING_${envKey}`];
-      const airbnbUrl = process.env[`ICAL_AIRBNB_${envKey}`];
+    const mapping: Record<string, string> = {
+      'apartament-premium-king': 'PREMIUM_KING',
+      'apartament-deluxe-double': 'DELUXE_DOUBLE',
+      'apartament-family-standard': 'FAMILY_STANDARD',
+      'apartament-family-deluxe': 'FAMILY_DELUXE',
+      'peraduo': 'PERADUO',
+      'peraconfort': 'PERACONFORT'
+    };
 
-      if (bookingUrl) {
-        await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-      }
-      if (airbnbUrl) {
-        await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+    for (const slug of apartments) {
+      try {
+        const baseKey = mapping[slug] || slug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+        const bookingUrl = process.env[`ICAL_BOOKING_${baseKey}`];
+        const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`];
+
+        if (bookingUrl) {
+          await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+        }
+        if (airbnbUrl) {
+          await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+        }
+      } catch (err: any) {
+        console.error(`[Background Sync] Error syncing ${slug}:`, err.message);
       }
     }
     console.log("[Background Sync] Finished full sync.");

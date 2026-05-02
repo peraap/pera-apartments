@@ -486,7 +486,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-12">
       <div className="flex justify-between items-center">
-        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.4.0)</span></h3>
+        <h3 className="text-2xl font-serif">Dashboard Admin <span className="text-[10px] text-neutral-500 font-sans font-normal uppercase tracking-widest">(v1.4.2)</span></h3>
         <button 
           onClick={handleFullSync}
           disabled={syncing}
@@ -922,7 +922,7 @@ const BlocksManager = () => {
             <div className="space-y-2">
               <label className="text-[10px] uppercase font-bold text-neutral-400">Motiv (opțional)</label>
               <input 
-                placeholder="Ex: Mentenanță, Curățenie..." 
+                placeholder="Ex: Rezervare externă, Curățenie..." 
                 className="w-full px-4 py-3 bg-neutral-50 rounded-xl outline-none"
                 value={newBlock.reason}
                 onChange={e => setNewBlock({...newBlock, reason: e.target.value})}

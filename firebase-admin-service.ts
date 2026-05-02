@@ -42,7 +42,7 @@ try {
     adminDb = getFirestore(app);
   } else {
     try {
-      // @ts-ignore - Some versions might have different signatures but this is generally supported
+      // In newer firebase-admin versions, this is the preferred way for named databases
       adminDb = getFirestore(app, dbId);
     } catch (e) {
       console.warn(`[Firebase Admin] Could not initialize with dbId ${dbId}, falling back to default:`, (e as Error).message);
@@ -50,12 +50,19 @@ try {
     }
   }
   
-  console.log(`[Firebase Admin] Connecting to database: ${dbId}`);
+  console.log(`[Firebase Admin] Connecting to database: ${dbId} in project: ${firebaseConfig.projectId}`);
   
-  // Quick probe to verify access
-  adminDb.collection('manual_blocks').limit(1).get()
-    .then((s: any) => console.log(`[Firebase Admin] Connection verified. Found ${s.size} docs in 'manual_blocks'.`))
-    .catch((e: any) => console.error("[Firebase Admin] Connection verification failed:", e.message));
+  // Quick probe to verify access - wrap in catch to prevent startup crash
+  try {
+    adminDb.collection('apartments').limit(1).get()
+      .then((s: any) => console.log(`[Firebase Admin] Database access verified. Found ${s.size} apartments.`))
+      .catch((e: any) => {
+        console.warn("[Firebase Admin] Access verification warning:", e.message);
+        console.warn("[Firebase Admin] This might be due to missing collections or restricted IAM roles. Continuing anyway...");
+      });
+  } catch (probeError) {
+    console.warn("[Firebase Admin] Probe failed to start:", (probeError as Error).message);
+  }
 } catch (error) {
   console.error("[Firebase Admin] Initialization failed:", error);
 }
