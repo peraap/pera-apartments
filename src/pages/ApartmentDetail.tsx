@@ -487,7 +487,7 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
           <div className="lg:col-span-2">
             <div className="sticky top-40">
               <Reveal3D>
-                <div className="bg-white border border-neutral-100 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] rounded-[3.5rem] p-3 sm:p-6 lg:p-8 relative overflow-hidden group">
+                <div className="bg-white border border-neutral-100 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] rounded-[3.5rem] p-3 sm:p-6 lg:p-8 relative group">
                   <div className="absolute top-0 left-0 w-full h-8 bg-black"></div>
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-white/20 z-10"></div>
                   
@@ -524,15 +524,13 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
                   </div>
                   
                   {/* Calendar Integration */}
-                  <div className="mt-12">
-                    <TiltCard>
+                  <div className="mt-12 relative z-10">
                       <BookingCalendar 
                         apartmentId={apartment.id} 
                         apartmentName={apartment.name} 
                         pricePerNight={apartment.pricePerNight}
                         slug={apartment.slug}
                       />
-                    </TiltCard>
                   </div>
                 </div>
               </Reveal3D>

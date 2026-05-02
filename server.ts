@@ -62,10 +62,16 @@ async function startServer() {
 
   app.use(express.json());
   
-  // Sync routes - High priority
+  // 1. CORS & Global Middleware
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
+  }));
+
+  // Sync routes - ABSOLUTELY HIGHEST PRIORITY
   const handleSync = async (req: express.Request, res: express.Response) => {
     console.log(`[API-SYNC-HIT] ${req.method} ${req.path} - Processing sync request`);
-    console.log(`[API-SYNC-QUERY] ${JSON.stringify(req.query)}`);
     const targetSlug = req.query.slug as string;
     const targetSource = req.query.source as string;
     
@@ -85,7 +91,6 @@ async function startServer() {
           }
         }
         
-        // If Admin SDK didn't provide results, try Client SDK
         if (apartmentsInDb.length === 0 && db) {
           const snapshot = await getDocs(collection(db, 'apartments'));
           apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
@@ -95,23 +100,14 @@ async function startServer() {
       }
 
       const masterList = [
-        'apartament-premium-king',
-        'apartament-deluxe-double',
-        'apartament-family-standard',
-        'apartament-family-deluxe',
-        'peraduo',
-        'peraconfort',
-        'premium-king',
-        'deluxe-double',
-        'family-standard',
-        'family-deluxe'
+        'apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard',
+        'apartament-family-deluxe', 'peraduo', 'peraconfort',
+        'premium-king', 'deluxe-double', 'family-standard', 'family-deluxe'
       ];
 
       const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
       const allSlugs = Array.from(new Set([...masterList, ...dbSlugs])).filter(Boolean);
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
-      
-      console.log(`[API-SYNC] Target rooms: ${syncApartments.join(', ')}`);
       
       const finalResults: any[] = [];
       for (const slug of syncApartments) {
@@ -120,16 +116,11 @@ async function startServer() {
         
         try {
           const mapping: Record<string, string> = {
-            'apartament-premium-king': 'PREMIUM_KING',
-            'apartament-deluxe-double': 'DELUXE_DOUBLE',
-            'apartament-family-standard': 'FAMILY_STANDARD',
-            'apartament-family-deluxe': 'FAMILY_DELUXE',
-            'peraduo': 'PERADUO',
-            'peraconfort': 'PERACONFORT',
-            'premium-king': 'PREMIUM_KING',
-            'deluxe-double': 'DELUXE_DOUBLE',
-            'family-standard': 'FAMILY_STANDARD',
-            'family-deluxe': 'FAMILY_DELUXE'
+            'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE',
+            'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE',
+            'peraduo': 'PERADUO', 'peraconfort': 'PERACONFORT',
+            'premium-king': 'PREMIUM_KING', 'deluxe-double': 'DELUXE_DOUBLE',
+            'family-standard': 'FAMILY_STANDARD', 'family-deluxe': 'FAMILY_DELUXE'
           };
           
           const baseKey = mapping[normalizedSlug] || normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
@@ -137,8 +128,7 @@ async function startServer() {
           const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`] || '';
 
           if (!bookingUrl && !airbnbUrl) {
-            console.log(`[Sync] ${slug} - NO ICAL URLs found for ${baseKey}`);
-            finalResults.push({ slug, source: 'Config', status: 'skipped', message: `No ICAL URLs for ${baseKey}` });
+            finalResults.push({ slug, source: 'Config', status: 'skipped', message: `No URLs for ${baseKey}` });
             continue;
           }
 
@@ -160,8 +150,6 @@ async function startServer() {
         }
         finalResults.push(...roomResults);
       }
-      console.log(`[API-SYNC-END] Completed ${finalResults.length} operations`);
-      // If we're here, we MUST return something.
       return res.json({ status: "Sync completed", results: finalResults });
     } catch (error: any) {
       console.error("[API-SYNC] Fatal Error:", error);
@@ -169,9 +157,9 @@ async function startServer() {
     }
   };
 
-  app.all("/api/sync", handleSync);
-  app.all("/api/sync-calendar", handleSync);
-  app.all("/api/sync-calendars", handleSync);
+  app.all("/api/sync", (req, res) => { handleSync(req, res); });
+  app.all("/api/sync-calendar", (req, res) => { handleSync(req, res); });
+  app.all("/api/sync-calendars", (req, res) => { handleSync(req, res); });
 
   // Debug Logging Middleware
   app.use((req, res, next) => {
@@ -192,18 +180,11 @@ async function startServer() {
     next();
   });
 
-  // 1. CORS & Global Middleware
-  app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
-  }));
-
   // API Routes - Health Check first
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.4.2",
+      version: "1.4.4",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb,

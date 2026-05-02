@@ -399,9 +399,9 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
             month: "w-full space-y-6",
             month_caption: "flex justify-center pt-2 relative items-center mb-10 min-h-12",
             caption_label: "text-lg font-black uppercase tracking-[0.3em] text-neutral-900 border-b-2 border-neutral-900 pb-1 px-4 z-10",
-            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-12 z-40 pointer-events-none",
-            button_previous: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md pointer-events-auto",
-            button_next: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md pointer-events-auto",
+            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-12 z-50",
+            button_previous: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md",
+            button_next: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md",
             month_grid: "w-full border-collapse",
             weekdays: "flex w-full mb-4",
             weekday: "text-neutral-300 font-black uppercase tracking-widest text-[10px] flex-1 text-center font-sans",
@@ -518,7 +518,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
       <button
         onClick={handleBooking}
         disabled={loading || (selectedOffer && !offerConditionMet(selectedOffer))}
-        className={`w-full py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] ${
+        className={`w-full py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] relative z-50 ${
           !range?.from || !range?.to 
             ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
             : 'bg-black text-white hover:bg-neutral-800 hover:scale-[1.01] shadow-black/20'
