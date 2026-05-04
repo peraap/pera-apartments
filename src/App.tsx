@@ -4,7 +4,8 @@ import {
   Routes, 
   Route, 
   Link, 
-  useLocation 
+  useLocation,
+  Navigate
 } from 'react-router-dom';
 import { HashLink } from 'react-router-hash-link';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
@@ -662,6 +663,7 @@ const AppContent = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 
                   <Route path="/admin/*" element={<Admin />} />
                   <Route path="/legal/:type" element={<Legal lang={lang} />} />
                   <Route path="/booking-success" element={<BookingSuccess />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </motion.div>
             </AnimatePresence>

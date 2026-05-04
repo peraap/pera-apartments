@@ -1413,23 +1413,58 @@ export default function Admin() {
     console.log('Admin Page Mounted');
   }, []);
 
-  console.log('Admin Page - Auth State:', { 
-    user: user?.email, 
-    profileRole: profile?.role, 
-    authLoading 
-  });
+  const [redirectScheduled, setRedirectScheduled] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading) {
+      const isAdminEmail = user?.email?.toLowerCase() === 'petreandrei1979@gmail.com';
+      const isAuthorized = user && (profile?.role === 'admin' || isAdminEmail);
+      
+      console.log('[Admin Debug] Check Auth:', {
+        hasUser: !!user,
+        email: user?.email,
+        role: profile?.role,
+        isAuthorized,
+        path: location.pathname
+      });
+
+      if (!isAuthorized && !redirectScheduled) {
+        console.log('[Admin Debug] Not authorized, scheduling redirect to /login');
+        setRedirectScheduled(true);
+        // Use a small timeout to avoid immediate state updates during render if any
+        const timer = setTimeout(() => {
+          navigate('/login', { state: { from: location }, replace: true });
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [user, profile, authLoading, navigate, location, redirectScheduled]);
 
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+          <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">Verificare Securitate...</p>
+        </div>
       </div>
     );
   }
 
-  if (!user || (profile?.role !== 'admin' && user?.email !== 'petreandrei1979@gmail.com')) {
-    console.log('Admin Page - Redirecting to /login');
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  const isAdminEmail = user?.email?.toLowerCase() === 'petreandrei1979@gmail.com';
+  const isAuthorized = user && (profile?.role === 'admin' || isAdminEmail);
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
+        <div className="text-center">
+          <h2 className="text-2xl font-serif mb-4">Acces Restricționat</h2>
+          <p className="text-neutral-500 mb-8 max-w-md">Nu aveți permisiuni pentru a accesa această pagină. Veți fi redirecționat către pagina de autentificare.</p>
+          <div className="animate-pulse flex justify-center">
+            <div className="h-1 w-12 bg-neutral-200 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const sidebarLinks = [

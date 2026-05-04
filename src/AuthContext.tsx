@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(data);
             
             // Ensure admin role for ADMIN_EMAIL
-            if (currentUser.email === ADMIN_EMAIL && data.role !== 'admin') {
+            if (currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() && data.role !== 'admin') {
               console.log('Upgrading user to admin role');
               setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(err => {
                 console.error('Error upgrading to admin:', err);
@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               displayName: currentUser.displayName || '',
               photoURL: currentUser.photoURL || '',
               points: 0,
-              role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'user',
+              role: currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user',
               lastLogin: now,
               createdAt: now
             };

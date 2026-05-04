@@ -184,21 +184,37 @@ async function startServer() {
     next();
   });
 
-  // iCal Export Handler
+  // API Routes - Health Check first
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      version: "1.4.9",
+      env: process.env.NODE_ENV,
+      dbInitialized: !!db,
+      adminDbInitialized: !!adminDb
+    });
+  });
+
+  app.get("/api/debug-api", (req, res) => {
+    res.json({ status: "alive", path: req.path, time: new Date().toISOString() });
+  });
+
+  // iCal Export Handler (Declared before routes)
   const handleIcalExport = async (req: any, res: any) => {
     try {
-      let slug = req.params.slug || req.params[0];
-      if (slug && slug.startsWith('/')) slug = slug.substring(1);
+      console.log(`[iCal-Hit] ${req.method} ${req.originalUrl}`);
       
-      console.log(`[iCal Export Request] Raw slug from params: ${slug}`);
+      // Try to get slug from various sources
+      let slug = req.params.slug || req.params[0] || req.path.split('/').pop() || '';
       
-      if (slug && slug.toLowerCase().endsWith('.ics')) {
+      if (slug.startsWith('/')) slug = slug.substring(1);
+      if (slug.toLowerCase().endsWith('.ics')) {
         slug = slug.substring(0, slug.length - 4);
       }
       
-      if (!slug) {
-        console.error("[iCal Export] Missing slug in request");
-        return res.status(400).send("Slug required (e.g. /api/export-ical/apartament-premium-king.ics)");
+      if (!slug || slug === 'api' || slug === 'ical' || slug === 'export-ical') {
+        console.error("[iCal Export] Missing or invalid slug");
+        return res.status(400).send("Slug required (ex: /api/export-ical/apartament-premium-king.ics)");
       }
 
       console.log(`[iCal Export] Generating for: ${slug}`);
@@ -210,44 +226,29 @@ async function startServer() {
       });
 
       if (adminDb || db) {
-        // 1. Fetch Bookings
+        // Fetch logic...
         let querySnapshot;
         try {
           if (adminDb) {
-            console.log("[iCal Export] fetching bookings using Admin SDK...");
             querySnapshot = await adminDb.collection('bookings')
               .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
               .get();
-          } else {
-            console.log("[iCal Export] No Admin SDK, using Client SDK");
-            throw new Error("ADMIN_MISSING");
-          }
+          } else { throw new Error("ADMIN_MISSING"); }
         } catch (fetchError: any) {
-          if (fetchError.message !== "ADMIN_MISSING") {
-            console.warn("[iCal Export] Admin SDK fetch restricted/failed, using Client SDK:", fetchError.message);
-          }
           const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
           querySnapshot = await getDocs(q);
         }
         
-        // 2. Fetch Manual Blocks
         let blocksSnapshot;
         try {
-          if (adminDb) {
-            blocksSnapshot = await adminDb.collection('manual_blocks').get();
-          } else {
-            blocksSnapshot = await getDocs(collection(db, 'manual_blocks'));
-          }
-        } catch (fetchBlocksError: any) {
-          console.error("[iCal Export] Blocks fetch failed:", fetchBlocksError.message);
-          blocksSnapshot = { forEach: () => {} };
-        }
+          if (adminDb) { blocksSnapshot = await adminDb.collection('manual_blocks').get(); }
+          else { blocksSnapshot = await getDocs(collection(db, 'manual_blocks')); }
+        } catch (e) { blocksSnapshot = { forEach: () => {} }; }
 
         let hasEvents = false;
         const searchSlug = slug.toLowerCase();
         const searchName = searchSlug.replace(/-/g, ' ');
 
-        // Explicit mapping for common user slugs
         const slugAliases: Record<string, string[]> = {
           'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
           'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
@@ -256,20 +257,15 @@ async function startServer() {
           'peraduo': ['5', 'pera-duo', 'peraduo'],
           'peraconfort': ['6', 'pera-confort', 'peraconfort']
         };
-
         const aliases = slugAliases[searchSlug] || [];
 
-        // Process Bookings
         querySnapshot.forEach((doc: any) => {
           const booking = doc.data();
           const aptName = (booking.apartmentName || '').toLowerCase();
           const aptId = (booking.apartmentId || '').toLowerCase();
-          
-          const isDirectIdMatch = aptId === searchSlug || aliases.includes(aptId);
-          const isNameMatch = aptName.includes(searchName) || aliases.some(alias => aptName.includes(alias));
-          const isShortNameMatch = booking.shortName && booking.shortName.toLowerCase() === searchSlug;
+          const isMatch = aptId === searchSlug || aliases.includes(aptId) || aptName.includes(searchName) || (booking.shortName && booking.shortName.toLowerCase() === searchSlug);
 
-          if ((isDirectIdMatch || isNameMatch || isShortNameMatch) && booking.checkIn && booking.checkOut) {
+          if (isMatch && booking.checkIn && booking.checkOut) {
             hasEvents = true;
             calendar.createEvent({
               id: `booking-${doc.id}`,
@@ -283,16 +279,10 @@ async function startServer() {
           }
         });
 
-        // Process Manual Blocks
         blocksSnapshot.forEach((doc: any) => {
           const block = doc.data();
           const blockAptId = (block.apartmentId || '').trim().toLowerCase();
-          
-          const isMatch = blockAptId === 'all' || 
-                          blockAptId === 'toate' ||
-                          blockAptId === searchSlug || 
-                          searchSlug.includes(blockAptId.replace(/ /g, '-')) ||
-                          blockAptId.includes(searchSlug.replace(/-/g, ' '));
+          const isMatch = blockAptId === 'all' || blockAptId === 'toate' || blockAptId === searchSlug || searchSlug.includes(blockAptId.replace(/ /g, '-')) || blockAptId.includes(searchSlug.replace(/-/g, ' '));
 
           if (isMatch && block.startDate && block.endDate) {
             hasEvents = true;
@@ -308,83 +298,47 @@ async function startServer() {
           }
         });
 
-        // 3. Fetch External Blocked Dates (Synced from Airbnb/Booking/Google)
         try {
           const externalDates = await getApartmentBlockedDates(slug);
           externalDates.forEach((dateStr: string) => {
             const [y, m, d] = dateStr.split('-').map(Number);
             const dateObj = new Date(y, m - 1, d, 12, 0, 0);
-            
             hasEvents = true;
             calendar.createEvent({
               id: `external-${slug}-${dateStr}`,
-              start: dateObj,
-              end: dateObj,
-              allDay: true,
+              start: dateObj, end: dateObj, allDay: true,
               summary: 'Occupied (External Sync)',
-              description: 'Imported from external calendar feed',
               busystatus: ICalEventBusyStatus.BUSY
             });
           });
-        } catch (extError) {
-          console.error("[iCal Export] External dates fetch failed:", extError);
-        }
+        } catch (e) {}
 
         if (!hasEvents) {
           const startDate = new Date();
-          startDate.setHours(0, 0, 0, 0);
           const endDate = new Date(startDate);
           endDate.setDate(startDate.getDate() + 1);
-
           calendar.createEvent({
             id: `sync-active-${slug}`,
-            start: startDate,
-            end: endDate,
-            allDay: true,
+            start: startDate, end: endDate, allDay: true,
             summary: 'Calendar Sync Active (Pera Apartments)',
-            description: 'Conexiune activă pentru sincronizarea calendarului. Nu există rezervări momentan.',
             busystatus: ICalEventBusyStatus.BUSY
           });
         }
       }
 
-      const output = calendar.toString();
       res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
-      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      
-      return res.status(200).send(output);
+      return res.status(200).send(calendar.toString());
     } catch (error: any) {
-      console.error("[iCal Export] Error:", error);
-      return res.status(500).json({ 
-        error: "Internal Server Error", 
-        message: error.message,
-        slug: req.params.slug || req.params[0]
-      });
+      console.error("[iCal Export] Fatal Error:", error);
+      return res.status(500).json({ error: error.message });
     }
   };
 
-  // API Routes - Health Check first
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      version: "1.4.8",
-      env: process.env.NODE_ENV,
-      dbInitialized: !!db,
-      adminDbInitialized: !!adminDb
-    });
-  });
-
-  // iCal Export Routes - Defined EXPLICITLY to avoid matching issues
-  app.get("/api/ical/:slug", (req, res) => { console.log(`[iCal-Hit] /api/ical/${req.params.slug}`); handleIcalExport(req, res); });
-  app.get("/api/export-ical/:slug", (req, res) => { console.log(`[iCal-Hit] /api/export-ical/${req.params.slug}`); handleIcalExport(req, res); });
-  app.get("/export-ical/:slug", (req, res) => { console.log(`[iCal-Hit] /export-ical/${req.params.slug}`); handleIcalExport(req, res); });
-  
-  // Wildcard fallbacks for iCal
-  app.get("/api/ical/*", (req, res) => { console.log(`[iCal-Wildcard-Hit] ${req.path}`); handleIcalExport(req, res); });
-  app.get("/api/export-ical/*", (req, res) => { console.log(`[iCal-Wildcard-Hit] ${req.path}`); handleIcalExport(req, res); });
-  app.get("/export-ical/*", (req, res) => { console.log(`[iCal-Wildcard-Hit] ${req.path}`); handleIcalExport(req, res); });
+  // Register iCal routes with High Priority
+  app.get(["/api/ical/:slug", "/api/export-ical/:slug", "/export-ical/:slug"], handleIcalExport);
+  app.get(["/api/ical/*", "/api/export-ical/*", "/export-ical/*"], handleIcalExport);
 
   // Sync routes
   app.all("/api/sync", (req, res) => { handleSync(req, res); });
