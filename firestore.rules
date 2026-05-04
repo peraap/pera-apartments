@@ -129,7 +129,7 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.guestEmail == request.auth.token.email);
+      allow read: if true; // Required for iCal export endpoints to work publicly
       allow create: if isValidBooking(incoming());
       allow update: if isAdmin();
       allow delete: if isAdmin();

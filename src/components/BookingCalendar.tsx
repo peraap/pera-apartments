@@ -399,9 +399,10 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
             month: "w-full space-y-6",
             month_caption: "flex justify-center pt-2 relative items-center mb-10 min-h-12",
             caption_label: "text-lg font-black uppercase tracking-[0.3em] text-neutral-900 border-b-2 border-neutral-900 pb-1 px-4 z-10",
-            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-12 z-50",
-            button_previous: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md",
-            button_next: "h-12 w-12 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-md",
+            nav: "absolute top-2 left-0 right-0 flex items-center justify-between w-full h-12 z-[100]",
+            nav_button: "h-14 w-14 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center transition-all border border-neutral-100 hover:border-black active:scale-90 disabled:opacity-20 cursor-pointer shadow-xl relative z-[200]",
+            nav_button_previous: "absolute left-4",
+            nav_button_next: "absolute right-4",
             month_grid: "w-full border-collapse",
             weekdays: "flex w-full mb-4",
             weekday: "text-neutral-300 font-black uppercase tracking-widest text-[10px] flex-1 text-center font-sans",
@@ -518,7 +519,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({ apartmentId, a
       <button
         onClick={handleBooking}
         disabled={loading || (selectedOffer && !offerConditionMet(selectedOffer))}
-        className={`w-full py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] relative z-50 ${
+        className={`w-full py-5 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] relative z-[120] ${
           !range?.from || !range?.to 
             ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
             : 'bg-black text-white hover:bg-neutral-800 hover:scale-[1.01] shadow-black/20'

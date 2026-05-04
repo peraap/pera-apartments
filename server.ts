@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import Stripe from "stripe";
 import dotenv from "dotenv";
@@ -68,6 +69,13 @@ async function startServer() {
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
   }));
+
+  // File existence check for dist/index.html
+  const distPath = path.join(process.cwd(), 'dist');
+  const indexExists = fs.existsSync(path.join(distPath, 'index.html'));
+  console.log(`[Server] dist/index.html exists: ${indexExists} at ${distPath}`);
+  const rootIndexExists = fs.existsSync(path.join(process.cwd(), 'index.html'));
+  console.log(`[Server] root index.html exists: ${rootIndexExists} at ${process.cwd()}`);
 
   // Sync routes - ABSOLUTELY HIGHEST PRIORITY
   const handleSync = async (req: express.Request, res: express.Response) => {
@@ -180,24 +188,7 @@ async function startServer() {
     next();
   });
 
-  // API Routes - Health Check first
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      version: "1.4.4",
-      env: process.env.NODE_ENV,
-      dbInitialized: !!db,
-      adminDbInitialized: !!adminDb,
-      stripeKey: !!process.env.STRIPE_SECRET_KEY,
-      gmailUser: !!process.env.GMAIL_USER,
-      gmailPass: !!process.env.GMAIL_APP_PASSWORD,
-      webhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
-      calendarJson: !!process.env.GOOGLE_CALENDAR_IDS_JSON,
-      sheetsId: !!process.env.GOOGLE_SHEET_ID
-    });
-  });
-
-  // 1. Static Validation & Higher Priority Public Routes
+  // iCal Export Handler
   const handleIcalExport = async (req: any, res: any) => {
     try {
       let slug = req.params.slug || req.params[0];
@@ -210,7 +201,8 @@ async function startServer() {
       }
       
       if (!slug) {
-        return res.status(400).send("Slug required");
+        console.error("[iCal Export] Missing slug in request");
+        return res.status(400).send("Slug required (e.g. /api/export-ical/apartament-premium-king.ics)");
       }
 
       console.log(`[iCal Export] Generating for: ${slug}`);
@@ -320,7 +312,6 @@ async function startServer() {
           }
         });
 
-        // Add a placeholder event if empty to pass validation
         // 3. Fetch External Blocked Dates (Synced from Airbnb/Booking/Google)
         try {
           const externalDates = await getApartmentBlockedDates(slug);
@@ -362,8 +353,6 @@ async function startServer() {
       }
 
       const output = calendar.toString();
-      
-      // Strict headers for iCal validators
       res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${slug}.ics"`);
       res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -375,18 +364,28 @@ async function startServer() {
       return res.status(500).json({ 
         error: "Internal Server Error", 
         message: error.message,
-        stack: error.stack,
         slug: req.params.slug || req.params[0]
       });
     }
   };
 
-  // Improved route matching
-  app.get("/api/ical*", handleIcalExport);
-  app.get("/api/export-ical*", handleIcalExport);
-  app.get("/export-ical*", handleIcalExport);
+  // API Routes - Health Check first
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      version: "1.4.7",
+      env: process.env.NODE_ENV,
+      dbInitialized: !!db,
+      adminDbInitialized: !!adminDb
+    });
+  });
 
-  // Removing duplicate sync-calendars and health check routes as they are now at the top
+  // Register API routes
+  app.get(["/api/ical/:slug", "/api/export-ical/:slug", "/export-ical/:slug"], handleIcalExport);
+  app.get(["/api/ical*", "/api/export-ical*", "/export-ical*"], handleIcalExport);
+  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], (req, res) => { handleSync(req, res); });
+
+  // Removing duplicate sync-calendars
 
   // Cors is now handled above manually in startServer
   // Removing duplicate or misplaced middleware block
@@ -745,7 +744,6 @@ async function startServer() {
   });
 
   // 3. VITE / STATIC FILES (Must be after API)
-  const distPath = path.join(process.cwd(), 'dist');
   
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Configuring Vite middleware for development");
@@ -759,7 +757,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
     
-    // Explicit route for /admin to ensure it hit React Router
+    // Explicit route for /admin to ensure it hits React Router
     app.get(['/admin', '/admin/*'], (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
       console.log(`[Admin Fallback] Serving index.html for ${req.path}`);
@@ -776,6 +774,11 @@ async function startServer() {
     console.log("[Server] Configuring static files for production");
     // In production, everything from public is already in dist
     app.use(express.static(distPath));
+    
+    app.get(['/admin', '/admin/*'], (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) {
         console.warn(`[404] API Not Found: ${req.path}`);
@@ -783,12 +786,7 @@ async function startServer() {
       }
       console.log(`[Production Fallback] Serving index.html for ${req.path}`);
       const indexPath = path.join(distPath, 'index.html');
-      res.sendFile(indexPath, (err) => {
-        if (err) {
-          console.error(`[Error] Failed to send index.html: ${err.message}`);
-          res.status(500).send("Server Error: Missing index.html in dist");
-        }
-      });
+      res.sendFile(indexPath);
     });
   }
 
