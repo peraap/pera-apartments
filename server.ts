@@ -165,10 +165,6 @@ async function startServer() {
     }
   };
 
-  app.all("/api/sync", (req, res) => { handleSync(req, res); });
-  app.all("/api/sync-calendar", (req, res) => { handleSync(req, res); });
-  app.all("/api/sync-calendars", (req, res) => { handleSync(req, res); });
-
   // Debug Logging Middleware
   app.use((req, res, next) => {
     // Skip logging for internal Vite assets/sources to reduce noise
@@ -373,17 +369,27 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      version: "1.4.7",
+      version: "1.4.8",
       env: process.env.NODE_ENV,
       dbInitialized: !!db,
       adminDbInitialized: !!adminDb
     });
   });
 
-  // Register API routes
-  app.get(["/api/ical/:slug", "/api/export-ical/:slug", "/export-ical/:slug"], handleIcalExport);
-  app.get(["/api/ical*", "/api/export-ical*", "/export-ical*"], handleIcalExport);
-  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], (req, res) => { handleSync(req, res); });
+  // iCal Export Routes - Defined EXPLICITLY to avoid matching issues
+  app.get("/api/ical/:slug", (req, res) => { console.log(`[iCal-Hit] /api/ical/${req.params.slug}`); handleIcalExport(req, res); });
+  app.get("/api/export-ical/:slug", (req, res) => { console.log(`[iCal-Hit] /api/export-ical/${req.params.slug}`); handleIcalExport(req, res); });
+  app.get("/export-ical/:slug", (req, res) => { console.log(`[iCal-Hit] /export-ical/${req.params.slug}`); handleIcalExport(req, res); });
+  
+  // Wildcard fallbacks for iCal
+  app.get("/api/ical/*", (req, res) => { console.log(`[iCal-Wildcard-Hit] ${req.path}`); handleIcalExport(req, res); });
+  app.get("/api/export-ical/*", (req, res) => { console.log(`[iCal-Wildcard-Hit] ${req.path}`); handleIcalExport(req, res); });
+  app.get("/export-ical/*", (req, res) => { console.log(`[iCal-Wildcard-Hit] ${req.path}`); handleIcalExport(req, res); });
+
+  // Sync routes
+  app.all("/api/sync", (req, res) => { handleSync(req, res); });
+  app.all("/api/sync-calendar", (req, res) => { handleSync(req, res); });
+  app.all("/api/sync-calendars", (req, res) => { handleSync(req, res); });
 
   // Removing duplicate sync-calendars
 
@@ -776,7 +782,14 @@ async function startServer() {
     app.use(express.static(distPath));
     
     app.get(['/admin', '/admin/*'], (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      console.log(`[Production Admin] Serving index.html for ${req.path}`);
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        console.error("[Fatal] dist/index.html not found!");
+        res.status(404).send("Error: Application not built correctly (index.html missing)");
+      }
     });
 
     app.get('*', (req, res) => {
