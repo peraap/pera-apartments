@@ -190,35 +190,34 @@ async function startServer() {
     }
   }
 
-  // ----- START API ROUTES (PRIORITY) -----
-  console.log("[Server] Mounting API Routes...");
+  // ----- API ROUTES START -----
+  console.log("[Server] Registering API routes...");
 
-  // 1. Health & Version
+  // exact match for health
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      version: "1.5.4-LOCKED",
+      version: "1.5.5-STABLE",
       env: process.env.NODE_ENV,
-      adminDb: !!adminDb
+      adminDbInitialized: !!adminDb
     });
   });
 
-  // 2. Specific API Handlers (Exact Matches first)
-  app.all("/api/sync-calendars", handleSync);
-  app.all("/api/sync-calendar", handleSync);
+  // Sync routes
   app.all("/api/sync", handleSync);
+  app.all("/api/sync-calendar", handleSync);
+  app.all("/api/sync-calendars", handleSync);
 
   // iCal Exports
-  const icalPaths = [
+  app.get([
     "/api/ical/:slug", 
     "/api/ical/:slug.ics", 
     "/api/export-ical/:slug", 
     "/api/export-ical/:slug.ics", 
     "/export-ical/:slug", 
     "/export-ical/:slug.ics"
-  ];
-  app.get(icalPaths, handleIcalExport);
+  ], handleIcalExport);
 
   // Sheets & Logs
   app.get("/api/sheet-bookings", async (req, res) => {
@@ -255,7 +254,7 @@ async function startServer() {
     catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
-  // Emails & Checkout
+  // Emails & Checkout Sessions
   app.post("/api/send-discount-email", async (req, res) => {
     try {
       const { email, name } = req.body;
@@ -319,57 +318,14 @@ async function startServer() {
     res.json(results);
   });
 
-  // 3. Catch-all for /api/* to prevent 404 HTML/Text leaks
-  app.all("/api/*", (req, res) => {
-    console.warn(`[API-404] No match found for ${req.method} ${req.path}`);
-    res.status(404).json({ 
-      error: "Route not found", 
-      path: req.path,
-      hint: "Check server.ts registration priority"
-    });
-  });
-  
-  console.log("[Server] API Routes mounted successfully.");
-  // ----- END API ROUTES -----
-
-  // Debug Logging Middleware
-  app.use((req, res, next) => {
-    // Skip logging for internal Vite assets/sources to reduce noise
-    const isAsset = req.path.startsWith('/src/') || 
-                     req.path.startsWith('/node_modules/') || 
-                     req.path.startsWith('/@') || 
-                     req.path.includes('.tsx') || 
-                     req.path.includes('.ts');
-
-    if (!isAsset) {
-      if (req.path.startsWith('/admin')) {
-        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      } else {
-        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      }
-    }
-    next();
-  });
-
-  // API routes moved to top
-  // Webhook handled below
-
-  // CORS is already handled manually at the top
-  
-  // Webhook needs raw body for signature verification
+  // Webhook needs raw body for signature verification - MUST be defined before the general /api/* catch-all
   app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'] as string;
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
     let event;
-
     try {
-      if (!stripe) {
-        throw new Error("Stripe is not initialized");
-      }
-      if (!webhookSecret) {
-        throw new Error("STRIPE_WEBHOOK_SECRET is missing");
-      }
+      if (!stripe) throw new Error("Stripe is not initialized");
+      if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET is missing");
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
     } catch (err: any) {
       console.error(`Webhook Error: ${err.message}`);
@@ -395,79 +351,53 @@ async function startServer() {
               createdAt: new Date().toISOString(),
               source: 'stripe_webhook_preview'
             };
-
-            if (db) {
-              await addDoc(collection(db, 'bookings'), bookingData);
-              console.log(`Booking saved to Firestore for session ${session.id}`);
-            }
-
-            // 1.5. Log to Google Sheets & Calendar
+            if (db) await addDoc(collection(db, 'bookings'), bookingData);
+            try { await Promise.all([logBookingToSheet(bookingData), addBookingToCalendar(bookingData)]); } catch (syncError) { console.error("Sync Error:", syncError); }
+            const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
+            if (metadata.guestEmail) recipients.push(metadata.guestEmail);
             try {
-              await Promise.all([
-                logBookingToSheet(bookingData),
-                addBookingToCalendar(bookingData)
-              ]);
-            } catch (syncError) {
-              console.error("Failed to sync booking to Google Services:", syncError);
-            }
-
-            // 2. Send Confirmation Email
-          const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
-          if (metadata.guestEmail) {
-            recipients.push(metadata.guestEmail);
-          }
-
-          console.log(`[Webhook] Attempting to send confirmation email to: ${recipients.join(', ')}`);
-          
-          try {
-            await transporter.sendMail({
-              from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
-              to: recipients,
-              subject: 'Confirmare Rezervare - Pera Apartments',
-              html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                  <h2 style="color: #000;">Rezervare Nouă Confirmată!</h2>
-                  <p>Salut, <strong>${metadata.guestName || 'Oaspete'}</strong>,</p>
-                  <p>Plata pentru rezervarea la <strong>Pera Apartments</strong> a fost procesată cu succes.</p>
-                  
-                  <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <h3 style="margin-top: 0; color: #333;">Detalii Rezervare:</h3>
-                    <p><strong>Apartament:</strong> ${metadata.apartmentName || 'Apartament Pera'}</p>
-                    <p><strong>Check-in:</strong> ${metadata.checkIn}</p>
-                    <p><strong>Check-out:</strong> ${metadata.checkOut}</p>
-                    <p><strong>Total Plătit:</strong> ${metadata.totalPrice} RON</p>
-                    <p><strong>Email Client:</strong> ${metadata.guestEmail || 'Nespecificat'}</p>
-                  </div>
-                  
-                  <p>Te așteptăm cu drag! Dacă ai întrebări, ne poți contacta la acest email.</p>
-                  <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-                  <p style="font-size: 12px; color: #888;">Pera Apartments - Cristian, Brașov</p>
-                </div>
-              `,
-            });
-            console.log("[Webhook] Confirmation email sent successfully via Gmail.");
-          } catch (emailError) {
-            console.error("[Webhook] Gmail Error during payment confirmation:", emailError);
-          }
+              await transporter.sendMail({
+                from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
+                to: recipients, subject: 'Confirmare Rezervare - Pera Apartments',
+                html: `<h2>Rezervare Nouă Confirmată!</h2><p>Oaspete: ${metadata.guestName}</p><p>Apartament: ${metadata.apartmentName}</p>`
+              });
+            } catch (emailError) { console.error("Email Error:", emailError); }
         }
-      } catch (error) {
-        console.error("Error in webhook processing (DB or Email):", error);
-      }
+      } catch (error) { console.error("Webhook processing error:", error); }
     }
-
     res.json({ received: true });
   });
 
-  // API routes moved to top
-
-  // Moved to top
-
-  // Non-matching API routes should return 404
+  // Final catch-all for any /api/* route that didn't match
   app.all("/api/*", (req, res) => {
     console.warn(`[API-404] No match for ${req.method} ${req.path}`);
     res.status(404).json({ error: "Route not found", path: req.path });
   });
 
+  console.log("[Server] API routes registration completed.");
+  // ----- API ROUTES END -----
+
+  // Debug Logging Middleware
+  app.use((req, res, next) => {
+    // Skip logging for internal Vite assets/sources to reduce noise
+    const isAsset = req.path.startsWith('/src/') || 
+                     req.path.startsWith('/node_modules/') || 
+                     req.path.startsWith('/@') || 
+                     req.path.includes('.tsx') || 
+                     req.path.includes('.ts');
+
+    if (!isAsset) {
+      if (req.path.startsWith('/admin')) {
+        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      } else {
+        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      }
+    }
+    next();
+  });
+
+  // Webhook and catch-all are now handled in the consolidated section above.
+  
   // 3. VITE / STATIC FILES (Must be after API)
   
   if (process.env.NODE_ENV !== "production") {
@@ -574,4 +504,8 @@ async function startServer() {
   });
 }
 
-startServer();
+console.log("[Server] Starting initialization...");
+startServer().catch(err => {
+  console.error("[Server] FATAL: Failed to start server:", err);
+  process.exit(1);
+});
