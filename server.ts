@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -60,6 +59,7 @@ console.log("Gmail App Password present:", !!process.env.GMAIL_APP_PASSWORD);
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const distPath = path.join(process.cwd(), 'dist');
 
   app.use(express.json());
   
@@ -101,7 +101,7 @@ async function startServer() {
             .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
             .get();
         
-        let blocksSnapshot = { forEach: () => {} };
+        let blocksSnapshot: any = { forEach: (_cb: any) => {} };
         try { blocksSnapshot = await adminDb.collection('manual_blocks').get(); } catch (e) {}
 
         const searchSlug = slug.toLowerCase();
@@ -197,22 +197,24 @@ async function startServer() {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      version: "1.5.2",
+      version: "1.5.3",
       env: process.env.NODE_ENV,
       adminDb: !!adminDb
     });
   });
 
-  app.get([
-    "/api/ical/:slug", 
-    "/api/ical/:slug.ics", 
-    "/api/export-ical/:slug", 
-    "/api/export-ical/:slug.ics", 
-    "/export-ical/:slug", 
-    "/export-ical/:slug.ics"
-  ], handleIcalExport);
+  // Explicit iCal routes
+  app.get("/api/ical/:slug", handleIcalExport);
+  app.get("/api/ical/:slug.ics", handleIcalExport);
+  app.get("/api/export-ical/:slug", handleIcalExport);
+  app.get("/api/export-ical/:slug.ics", handleIcalExport);
+  app.get("/export-ical/:slug", handleIcalExport);
+  app.get("/export-ical/:slug.ics", handleIcalExport);
 
-  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], handleSync);
+  // Explicit Sync routes
+  app.all("/api/sync", handleSync);
+  app.all("/api/sync-calendar", handleSync);
+  app.all("/api/sync-calendars", handleSync);
 
   app.get("/api/sheet-bookings", async (req, res) => {
     try {
@@ -466,6 +468,7 @@ async function startServer() {
   
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Configuring Vite middleware for development");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       root: process.cwd(),
       server: { 
@@ -556,13 +559,14 @@ async function startServer() {
     console.log("[Background Sync] Finished full sync.");
   };
 
-  // Run on start
-  runFullSync();
-  // Run every 30 minutes
-  setInterval(runFullSync, 30 * 60 * 1000);
-
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Start background sync after server is listening to avoid blocking health checks
+    console.log("[Background Sync] Scheduling initial sync...");
+    setTimeout(runFullSync, 5000);
+    // Run every 30 minutes thereafter
+    setInterval(runFullSync, 30 * 60 * 1000);
   });
 }
 
