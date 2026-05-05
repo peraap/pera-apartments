@@ -63,7 +63,14 @@ async function startServer() {
 
   app.use(express.json());
   
-  // 1. CORS & Global Middleware
+  // 1. Global Trace & CORS
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      console.log(`[API-TRACE] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+    }
+    next();
+  });
+
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -183,27 +190,36 @@ async function startServer() {
     }
   }
 
-  // REGISTER PRIORITY API ROUTES IMMEDIATELY
-  app.get("/api/ical/:slug", handleIcalExport);
-  app.get("/api/ical/:slug.ics", handleIcalExport);
-  app.get("/api/export-ical/:slug", handleIcalExport);
-  app.get("/api/export-ical/:slug.ics", handleIcalExport);
-  app.get("/export-ical/:slug", handleIcalExport);
-  app.get("/export-ical/:slug.ics", handleIcalExport);
-  app.all("/api/sync", handleSync);
-  app.all("/api/sync-calendar", handleSync);
-  app.all("/api/sync-calendars", handleSync);
-  
-  // All other API routes for the app
-  app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
-  
+  // ----- START API ROUTES (PRIORITY) -----
+  console.log("[Server] Mounting API Routes...");
+
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      version: "1.5.2",
+      env: process.env.NODE_ENV,
+      adminDb: !!adminDb
+    });
+  });
+
+  app.get([
+    "/api/ical/:slug", 
+    "/api/ical/:slug.ics", 
+    "/api/export-ical/:slug", 
+    "/api/export-ical/:slug.ics", 
+    "/export-ical/:slug", 
+    "/export-ical/:slug.ics"
+  ], handleIcalExport);
+
+  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], handleSync);
+
   app.get("/api/sheet-bookings", async (req, res) => {
     try {
       const auth = await getSheetsAuth();
       const sheets = google.sheets({ version: 'v4', auth });
       const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEET_ID,
-        range: 'Rezervari!A2:K200',
+        spreadsheetId: process.env.GOOGLE_SHEET_ID, range: 'Rezervari!A2:K200',
       });
       res.json({ bookings: response.data.values || [] });
     } catch (error: any) { res.status(500).json({ error: error.message }); }
@@ -221,18 +237,15 @@ async function startServer() {
       const auth = await getSheetsAuth();
       const sheets = google.sheets({ version: 'v4', auth });
       const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEET_ID,
-        range: 'Autentificari!A2:E100',
+        spreadsheetId: process.env.GOOGLE_SHEET_ID, range: 'Autentificari!A2:E100',
       });
       res.json({ logs: response.data.values || [] });
     } catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
   app.post("/api/log-login", async (req, res) => {
-    try {
-      await logLoginToSheet(req.body);
-      res.json({ success: true });
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
+    try { await logLoginToSheet(req.body); res.json({ success: true }); }
+    catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
   app.post("/api/send-discount-email", async (req, res) => {
@@ -243,8 +256,7 @@ async function startServer() {
       await logLeadToSheet(leadData);
       await transporter.sendMail({
         from: `"Pera Apartments" <${process.env.GMAIL_USER}>`,
-        to: email,
-        subject: 'Codul tău de reducere 20% - Pera Apartments',
+        to: email, subject: 'Codul tău de reducere 20% - Pera Apartments',
         html: `<h2>Salut, ${name}!</h2><p>Codul tău: <strong>PASTE20</strong></p>`
       });
       res.json({ success: true });
@@ -286,61 +298,33 @@ async function startServer() {
       const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com', metadata.guestEmail];
       await transporter.sendMail({
         from: `"Pera Apartments" <${process.env.GMAIL_USER}>`,
-        to: recipients,
-        subject: 'Confirmare Rezervare - Pera Apartments',
+        to: recipients, subject: 'Confirmare Rezervare - Pera Apartments',
         html: `<h2>Rezervare Confirmată!</h2><p>Apartament: ${metadata.apartmentName}</p>`
       });
       res.json({ success: true });
     } catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
-  // Catch-all API error handler (for debugging only)
-  // Cleaned up old registrations
-  const distPath = path.join(process.cwd(), 'dist');
-  const indexExists = fs.existsSync(path.join(distPath, 'index.html'));
-  console.log(`[Server] dist/index.html exists: ${indexExists} at ${distPath}`);
-  const rootIndexExists = fs.existsSync(path.join(process.cwd(), 'index.html'));
-  console.log(`[Server] root index.html exists: ${rootIndexExists} at ${process.cwd()}`);
-
-  // iCal Export Handler moved to top
-
   app.get("/api/debug-firestore", async (req, res) => {
-    const results: any = {
-      firebaseConfig: { projectId: firebaseConfig.projectId, databaseId: firebaseConfig.firestoreDatabaseId },
-      adminDbInitialized: !!adminDb,
-      clientDbInitialized: !!db
-    };
-
-    try {
-      if (adminDb) {
-        const snap = await adminDb.collection('apartments').limit(1).get();
-        results.adminAccess = { status: 'success', count: snap.size };
-      } else {
-        results.adminAccess = { status: 'missing' };
-      }
-    } catch (err: any) {
-      results.adminAccess = { status: 'failed', error: err.message };
-    }
-
-    try {
-      if (db) {
-        const snap = await getDocs(collection(db, 'apartments'));
-        results.clientAccess = { status: 'success', count: snap.size };
-      } else {
-        results.clientAccess = { status: 'missing' };
-      }
-    } catch (err: any) {
-      results.clientAccess = { status: 'failed', error: err.message };
-    }
-
+    const results: any = { adminDb: !!adminDb, clientDb: !!db };
+    try { if (adminDb) results.count = (await adminDb.collection('apartments').get()).size; } catch(e:any) { results.err = e.message; }
     res.json(results);
   });
 
-  // 0. The actual route registration is now at the top
+  // Debug helpers and Catch-alls
+  app.get("/api/debug-config", (req, res) => {
+    res.json({
+      nodeEnv: process.env.NODE_ENV,
+      port: 3000,
+      adminDb: !!adminDb,
+      firebaseProject: firebaseConfig.projectId
+    });
+  });
 
-  // handleSync moved to top
-
-  // The actual route registration is now at the top
+  app.all("/api/*", (req, res) => {
+    console.warn(`[API-404] No route for ${req.method} ${req.path}`);
+    res.status(404).json({ error: "Route not found", path: req.path });
+  });
 
   // Debug Logging Middleware
   app.use((req, res, next) => {
@@ -361,20 +345,8 @@ async function startServer() {
     next();
   });
 
-  // API Routes - Health Check first
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      version: "1.4.9",
-      env: process.env.NODE_ENV,
-      dbInitialized: !!db,
-      adminDbInitialized: !!adminDb
-    });
-  });
-
-  app.get("/api/debug-api", (req, res) => {
-    res.json({ status: "alive", path: req.path, time: new Date().toISOString() });
-  });
+  // API routes moved to top
+  // Webhook handled below
 
   // CORS is already handled manually at the top
   
@@ -484,11 +456,10 @@ async function startServer() {
 
   // Moved to top
 
-  // Catch-all API logger for debugging 404s
-  app.all("/api/*", (req, res, next) => {
-    // If we're here, it means no previous /api route matched
-    console.warn(`[API-404] No match found for ${req.method} ${req.path}`);
-    next();
+  // Non-matching API routes should return 404
+  app.all("/api/*", (req, res) => {
+    console.warn(`[API-404] No match for ${req.method} ${req.path}`);
+    res.status(404).json({ error: "Route not found", path: req.path });
   });
 
   // 3. VITE / STATIC FILES (Must be after API)
