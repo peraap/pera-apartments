@@ -492,13 +492,6 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
                       <span className="text-2xl font-black text-neutral-900 uppercase">LEI</span>
                       <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">/ {t.pricePerNight}</span>
                     </div>
-                    
-                    {apartment.originalPrice && (
-                      <div className="flex items-center gap-4 mt-4">
-                        <span className="text-xl text-vibrant-rose line-through font-bold opacity-50">{apartment.originalPrice} lei</span>
-                        <div className="bg-vibrant-emerald text-white text-[9px] font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-lg">EXCLUSIVE OFFER</div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="space-y-6 pt-12 border-t border-neutral-100 mb-12">

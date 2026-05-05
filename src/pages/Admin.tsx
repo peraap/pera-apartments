@@ -458,17 +458,20 @@ const Dashboard = () => {
     setSyncing(true);
     setSyncResults(null);
     try {
-      const response = await fetch(`/api/sync-calendars?t=${Date.now()}`);
+      const syncUrl = `/api/sync-calendars?t=${Date.now()}`;
+      console.log(`[Admin-Sync] Triggering sync at: ${syncUrl}`);
+      const response = await fetch(syncUrl);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server returned ${response.status}`);
+        const text = await response.text();
+        console.error(`[Admin-Sync] Server returned ${response.status}: ${text.substring(0, 500)}`);
+        throw new Error(`Server returned ${response.status}`);
       }
       const data = await response.json();
       setSyncResults(data.results || []);
       toast.success("Sincronizare finalizată!");
     } catch (e: any) {
-      console.error("Sync error:", e);
-      toast.error(`Eroare la sincronizare: ${e.message || 'Eroare necunoscută'}`);
+      console.error("[Admin-Sync] Sync error detail:", e);
+      toast.error(`Eroare la sincronizare (404/Network). Verifică consola pentru detalii.`);
     } finally {
       setSyncing(false);
     }

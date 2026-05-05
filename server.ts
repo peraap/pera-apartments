@@ -73,10 +73,11 @@ async function startServer() {
   // ----- CRITICAL API ROUTES HANDLERS -----
   async function handleIcalExport(req: any, res: any) {
     try {
-      console.log(`[iCal-Hit-Priority] ${req.method} ${req.originalUrl} - Path: ${req.path}`);
+      console.log(`[iCal-HIT] ${new Date().toISOString()} | Method: ${req.method} | URL: ${req.originalUrl} | Path: ${req.path}`);
+      console.log(`[iCal-HIT] Params:`, req.params);
       
       // Try to get slug from various sources
-      let slug = req.params.slug || req.params[0] || req.path.split('/').pop() || '';
+      let slug = req.params.slug || req.path.split('/').pop() || '';
       
       if (slug.startsWith('/')) slug = slug.substring(1);
       if (slug.toLowerCase().endsWith('.ics')) {
@@ -211,7 +212,7 @@ async function startServer() {
   }
 
   async function handleSync(req: express.Request, res: express.Response) {
-    console.log(`[API-SYNC-HIT] ${req.method} ${req.path} - Processing sync request`);
+    console.log(`[SYNC-HIT] ${new Date().toISOString()} | Method: ${req.method} | Path: ${req.path} | Query:`, req.query);
     const targetSlug = req.query.slug as string;
     const targetSource = req.query.source as string;
     
@@ -298,8 +299,17 @@ async function startServer() {
   }
 
   // ----- CRITICAL API ROUTES (HIGHEST PRIORITY) -----
-  app.get(["/api/ical*", "/api/export-ical*", "/export-ical*"], handleIcalExport);
-  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], handleSync);
+  // Explicitly defining routes individually for maximum compatibility across environments
+  app.get("/api/ical/:slug", handleIcalExport);
+  app.get("/api/ical/:slug.ics", handleIcalExport);
+  app.get("/api/export-ical/:slug", handleIcalExport);
+  app.get("/api/export-ical/:slug.ics", handleIcalExport);
+  app.get("/export-ical/:slug", handleIcalExport);
+  app.get("/export-ical/:slug.ics", handleIcalExport);
+  
+  app.all("/api/sync", handleSync);
+  app.all("/api/sync-calendar", handleSync);
+  app.all("/api/sync-calendars", handleSync);
   const distPath = path.join(process.cwd(), 'dist');
   const indexExists = fs.existsSync(path.join(distPath, 'index.html'));
   console.log(`[Server] dist/index.html exists: ${indexExists} at ${distPath}`);
