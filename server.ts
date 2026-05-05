@@ -193,29 +193,34 @@ async function startServer() {
   // ----- START API ROUTES (PRIORITY) -----
   console.log("[Server] Mounting API Routes...");
 
+  // 1. Health & Version
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      version: "1.5.3",
+      version: "1.5.4-LOCKED",
       env: process.env.NODE_ENV,
       adminDb: !!adminDb
     });
   });
 
-  // Explicit iCal routes
-  app.get("/api/ical/:slug", handleIcalExport);
-  app.get("/api/ical/:slug.ics", handleIcalExport);
-  app.get("/api/export-ical/:slug", handleIcalExport);
-  app.get("/api/export-ical/:slug.ics", handleIcalExport);
-  app.get("/export-ical/:slug", handleIcalExport);
-  app.get("/export-ical/:slug.ics", handleIcalExport);
-
-  // Explicit Sync routes
-  app.all("/api/sync", handleSync);
-  app.all("/api/sync-calendar", handleSync);
+  // 2. Specific API Handlers (Exact Matches first)
   app.all("/api/sync-calendars", handleSync);
+  app.all("/api/sync-calendar", handleSync);
+  app.all("/api/sync", handleSync);
 
+  // iCal Exports
+  const icalPaths = [
+    "/api/ical/:slug", 
+    "/api/ical/:slug.ics", 
+    "/api/export-ical/:slug", 
+    "/api/export-ical/:slug.ics", 
+    "/export-ical/:slug", 
+    "/export-ical/:slug.ics"
+  ];
+  app.get(icalPaths, handleIcalExport);
+
+  // Sheets & Logs
   app.get("/api/sheet-bookings", async (req, res) => {
     try {
       const auth = await getSheetsAuth();
@@ -250,6 +255,7 @@ async function startServer() {
     catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
+  // Emails & Checkout
   app.post("/api/send-discount-email", async (req, res) => {
     try {
       const { email, name } = req.body;
@@ -313,20 +319,18 @@ async function startServer() {
     res.json(results);
   });
 
-  // Debug helpers and Catch-alls
-  app.get("/api/debug-config", (req, res) => {
-    res.json({
-      nodeEnv: process.env.NODE_ENV,
-      port: 3000,
-      adminDb: !!adminDb,
-      firebaseProject: firebaseConfig.projectId
+  // 3. Catch-all for /api/* to prevent 404 HTML/Text leaks
+  app.all("/api/*", (req, res) => {
+    console.warn(`[API-404] No match found for ${req.method} ${req.path}`);
+    res.status(404).json({ 
+      error: "Route not found", 
+      path: req.path,
+      hint: "Check server.ts registration priority"
     });
   });
-
-  app.all("/api/*", (req, res) => {
-    console.warn(`[API-404] No route for ${req.method} ${req.path}`);
-    res.status(404).json({ error: "Route not found", path: req.path });
-  });
+  
+  console.log("[Server] API Routes mounted successfully.");
+  // ----- END API ROUTES -----
 
   // Debug Logging Middleware
   app.use((req, res, next) => {
