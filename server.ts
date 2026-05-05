@@ -70,15 +70,8 @@ async function startServer() {
     allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
   }));
 
-  // File existence check for dist/index.html
-  const distPath = path.join(process.cwd(), 'dist');
-  const indexExists = fs.existsSync(path.join(distPath, 'index.html'));
-  console.log(`[Server] dist/index.html exists: ${indexExists} at ${distPath}`);
-  const rootIndexExists = fs.existsSync(path.join(process.cwd(), 'index.html'));
-  console.log(`[Server] root index.html exists: ${rootIndexExists} at ${process.cwd()}`);
-
-  // iCal Export Handler (Declared at the top for maximum priority)
-  const handleIcalExport = async (req: any, res: any) => {
+  // ----- CRITICAL API ROUTES HANDLERS -----
+  async function handleIcalExport(req: any, res: any) {
     try {
       console.log(`[iCal-Hit-Priority] ${req.method} ${req.originalUrl} - Path: ${req.path}`);
       
@@ -114,8 +107,6 @@ async function startServer() {
           console.log(`[iCal Export] Found ${querySnapshot.size} bookings`);
         } catch (fetchError: any) {
           console.error("[iCal Export] Admin SDK fetch failed:", fetchError.message);
-          // Don't fallback to client db here as it will fail with permissions anyway
-          // and masking the real error from Admin SDK
           throw fetchError; 
         }
         
@@ -217,49 +208,9 @@ async function startServer() {
       console.error("[iCal Export] Fatal Error:", error);
       return res.status(500).json({ error: error.message });
     }
-  };
+  }
 
-  app.get("/api/debug-firestore", async (req, res) => {
-    const results: any = {
-      firebaseConfig: { projectId: firebaseConfig.projectId, databaseId: firebaseConfig.firestoreDatabaseId },
-      adminDbInitialized: !!adminDb,
-      clientDbInitialized: !!db
-    };
-
-    try {
-      if (adminDb) {
-        const snap = await adminDb.collection('apartments').limit(1).get();
-        results.adminAccess = { status: 'success', count: snap.size };
-      } else {
-        results.adminAccess = { status: 'missing' };
-      }
-    } catch (err: any) {
-      results.adminAccess = { status: 'failed', error: err.message };
-    }
-
-    try {
-      if (db) {
-        const snap = await getDocs(collection(db, 'apartments'));
-        results.clientAccess = { status: 'success', count: snap.size };
-      } else {
-        results.clientAccess = { status: 'missing' };
-      }
-    } catch (err: any) {
-      results.clientAccess = { status: 'failed', error: err.message };
-    }
-
-    res.json(results);
-  });
-
-  // 0. Register iCal routes IMMEDIATELY after CORS for highest priority
-  app.get("/api/export-ical/:slug", handleIcalExport);
-  app.get("/api/ical/:slug", handleIcalExport);
-  app.get("/export-ical/:slug", handleIcalExport);
-  app.get("/api/export-ical/:slug.ics", handleIcalExport);
-  app.get("/api/ical/:slug.ics", handleIcalExport);
-  app.get("/export-ical/:slug.ics", handleIcalExport);
-
-  const handleSync = async (req: express.Request, res: express.Response) => {
+  async function handleSync(req: express.Request, res: express.Response) {
     console.log(`[API-SYNC-HIT] ${req.method} ${req.path} - Processing sync request`);
     const targetSlug = req.query.slug as string;
     const targetSource = req.query.source as string;
@@ -344,10 +295,56 @@ async function startServer() {
       console.error("[API-SYNC] Fatal Error:", error);
       return res.status(500).json({ error: error.message });
     }
-  };
+  }
 
-  // Sync routes - ABSOLUTELY HIGHEST PRIORITY
-  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], (req: any, res: any) => { handleSync(req, res); });
+  // ----- CRITICAL API ROUTES (HIGHEST PRIORITY) -----
+  app.get(["/api/ical*", "/api/export-ical*", "/export-ical*"], handleIcalExport);
+  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], handleSync);
+  const distPath = path.join(process.cwd(), 'dist');
+  const indexExists = fs.existsSync(path.join(distPath, 'index.html'));
+  console.log(`[Server] dist/index.html exists: ${indexExists} at ${distPath}`);
+  const rootIndexExists = fs.existsSync(path.join(process.cwd(), 'index.html'));
+  console.log(`[Server] root index.html exists: ${rootIndexExists} at ${process.cwd()}`);
+
+  // iCal Export Handler moved to top
+
+  app.get("/api/debug-firestore", async (req, res) => {
+    const results: any = {
+      firebaseConfig: { projectId: firebaseConfig.projectId, databaseId: firebaseConfig.firestoreDatabaseId },
+      adminDbInitialized: !!adminDb,
+      clientDbInitialized: !!db
+    };
+
+    try {
+      if (adminDb) {
+        const snap = await adminDb.collection('apartments').limit(1).get();
+        results.adminAccess = { status: 'success', count: snap.size };
+      } else {
+        results.adminAccess = { status: 'missing' };
+      }
+    } catch (err: any) {
+      results.adminAccess = { status: 'failed', error: err.message };
+    }
+
+    try {
+      if (db) {
+        const snap = await getDocs(collection(db, 'apartments'));
+        results.clientAccess = { status: 'success', count: snap.size };
+      } else {
+        results.clientAccess = { status: 'missing' };
+      }
+    } catch (err: any) {
+      results.clientAccess = { status: 'failed', error: err.message };
+    }
+
+    res.json(results);
+  });
+
+  // 0. The actual route registration is now at the top
+
+  // handleSync moved to top
+
+  // The actual route registration is now at the top
 
   // Debug Logging Middleware
   app.use((req, res, next) => {

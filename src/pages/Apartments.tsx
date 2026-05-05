@@ -12,7 +12,7 @@ import {
 import { Link } from 'react-router-dom';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Apartment, SpecialOffer as SpecialOfferType } from '../types';
+import { Apartment } from '../types';
 import { Helmet } from 'react-helmet-async';
 import { Tag, ArrowRight, Home as HomeIcon } from 'lucide-react';
 import { TiltCard, Magnetic, GlowWrapper, TextReveal, ParallaxImage, AnimatedSection, Reveal3D, FloatingElement, SmoothIn, PhotoAlbum, NanoBanana, VibrantGallery } from '../components/AnimatedComponents';
@@ -66,12 +66,6 @@ const apartmentsTranslations = {
         { name: "Dino Parc", dist: "10 min", type: "park" },
         { name: "Aeroportul Brașov", dist: "12 min", type: "airport" }
       ]
-    },
-    offers: {
-      sub: "Pachete & Oferte",
-      title: "Rezervă inteligent.",
-      btnBook: "Vezi Oferta",
-      minNights: "nopți minim"
     },
     gallery: {
       tag: "Galerie Foto",
@@ -134,74 +128,7 @@ const apartmentsTranslations = {
   }
 };
 
-const SpecialOffers = ({ t, lang }: { t: any, lang: string }) => {
-  const [offers, setOffers] = useState<SpecialOfferType[]>([]);
-
-  useEffect(() => {
-    const q = query(collection(db, 'specialOffers'), where('isActive', '==', true));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setOffers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpecialOfferType)));
-    });
-    return unsub;
-  }, []);
-
-  if (offers.length === 0) return null;
-
-  return (
-    <section className="py-40 bg-slate-50 relative overflow-hidden rounded-[4rem] my-40 mx-4 md:mx-12 shadow-2xl border border-neutral-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-24">
-          <Reveal3D>
-            <span className="text-[10px] uppercase tracking-[0.5em] font-black text-neutral-400 mb-8 block">{t.offers.sub}</span>
-            <h2 className="text-5xl md:text-8xl font-display font-black text-neutral-900 leading-[0.9] tracking-tighter">
-              <TextReveal text={t.offers.title} />
-            </h2>
-          </Reveal3D>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {offers.map((offer, i) => (
-            <SmoothIn key={offer.id} direction="up" delay={i * 0.1}>
-              <TiltCard className="h-full">
-                <GlowWrapper className="h-full">
-                  <div className="bg-indigo-50/30 rounded-[3rem] p-12 h-full border border-indigo-100 shadow-sm flex flex-col group">
-                    <div className="flex justify-between items-start mb-10">
-                      <div className="bg-black text-white text-[9px] font-black px-4 py-2 rounded-full uppercase tracking-widest">
-                        -{offer.discountValue}{offer.discountType === 'percentage' ? '%' : ' RON'}
-                      </div>
-                      <Tag size={20} className="text-neutral-300 group-hover:text-black transition-colors" />
-                    </div>
-                    <h3 className="text-3xl font-display font-black mb-6 tracking-tight leading-tight">{offer.title}</h3>
-                    <p className="text-sm text-neutral-500 font-bold italic mb-10 line-clamp-3">{offer.description}</p>
-                    
-                    <div className="mt-auto pt-10 border-t border-neutral-100 space-y-4">
-                       <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-neutral-400">
-                          <span>Valabilitate</span>
-                          <span className="text-black">{new Date(offer.startDate).toLocaleDateString(lang === 'ro' ? 'ro-RO' : 'en-US')}</span>
-                       </div>
-                       <Magnetic>
-                         <button 
-                           onClick={() => {
-                             const el = document.getElementById('lista');
-                             if (el) el.scrollIntoView({ behavior: 'smooth' });
-                           }}
-                           className="w-full py-5 bg-black text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl flex items-center justify-center group/btn"
-                         >
-                           {t.offers.btnBook}
-                           <ArrowRight className="ml-3 group-hover/btn:translate-x-2 transition-transform" size={16} />
-                         </button>
-                       </Magnetic>
-                    </div>
-                  </div>
-                </GlowWrapper>
-              </TiltCard>
-            </SmoothIn>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
+// Removed SpecialOffers component
 
 export default function Apartments({ lang = 'ro' }: { lang?: string }) {
   const t = apartmentsTranslations[lang as keyof typeof apartmentsTranslations];
@@ -238,8 +165,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         name: lang === 'ro' ? "Cameră King" : "King Room",
         shortDescription: lang === 'ro' ? "Eleganță și confort suprem cu un pat king-size generos." : "Elegance and supreme comfort with a generous king-size bed.",
         description: lang === 'ro' ? "O cameră spațioasă și rafinată, ideală pentru momente de relaxare deplină, dotată cu un pat king-size pentru un somn odihnitor." : "A spacious and refined room, ideal for moments of complete relaxation, equipped with a king-size bed for a restful sleep.",
-        pricePerNight: 324,
-        originalPrice: 360,
+        pricePerNight: 360,
         capacity: 2,
         rooms: 1,
         bathrooms: 1,
@@ -254,8 +180,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         name: lang === 'ro' ? "Cameră dublă deluxe" : "Deluxe Double Room",
         shortDescription: lang === 'ro' ? "Confort modern și vedere spectaculoasă spre munte." : "Modern comfort and spectacular mountain views.",
         description: lang === 'ro' ? "Bucură-te de liniștea muntelui într-o cameră dublă dotată cu facilități premium și un design contemporan." : "Enjoy the mountain's peace in a double room equipped with premium facilities and a contemporary design.",
-        pricePerNight: 324,
-        originalPrice: 360,
+        pricePerNight: 360,
         capacity: 2,
         rooms: 1,
         bathrooms: 1,
@@ -270,8 +195,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         name: lang === 'ro' ? "Cameră de familie deluxe" : "Family Deluxe Room",
         shortDescription: lang === 'ro' ? "Spațiul ideal pentru întreaga familie, cu cea mai bună vedere spre terenul de tenis." : "The ideal space for the whole family, with the best view of the tennis court.",
         description: lang === 'ro' ? "O unitate generoasă, perfectă pentru familii, oferind intimitate și toate dotările necesare unei șederi prelungite. Această cameră oferă cea mai bună vedere panoramică spre terenul de tenis al complexului." : "A generous unit, perfect for families, offering privacy and all the amenities needed for an extended stay. This room offers the best panoramic view of the complex's tennis court.",
-        pricePerNight: 413,
-        originalPrice: 459,
+        pricePerNight: 459,
         capacity: 4,
         rooms: 2,
         bathrooms: 1,
@@ -286,8 +210,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         name: lang === 'ro' ? "Cameră de familie standard" : "Family Room",
         shortDescription: lang === 'ro' ? "Confort și funcționalitate cu un pat XL și canapea extensibilă." : "Comfort and functionality with an XL bed and sofa bed.",
         description: lang === 'ro' ? "O opțiune excelentă pentru familii, dotată cu un pat XL confortabil și o canapea extensibilă, oferind un raport calitate-preț imbatabil fără a face compromisuri la confort." : "An excellent option for families, equipped with a comfortable XL bed and a sofa bed, offering unbeatable value for money without compromising on comfort.",
-        pricePerNight: 413,
-        originalPrice: 459,
+        pricePerNight: 459,
         capacity: 4,
         rooms: 2,
         bathrooms: 1,
@@ -302,8 +225,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         name: "PeraDuo",
         shortDescription: lang === 'ro' ? "Rafinament și intimitate pentru două persoane." : "Refinement and intimacy for two people.",
         description: lang === 'ro' ? "PeraDuo oferă un spațiu modern și primitor, perfect pentru cupluri care caută confort și relaxare într-un cadru elegant." : "PeraDuo offers a modern and welcoming space, perfect for couples seeking comfort and relaxation in an elegant setting.",
-        pricePerNight: 365,
-        originalPrice: 405,
+        pricePerNight: 405,
         capacity: 2,
         rooms: 2,
         bathrooms: 1,
@@ -318,8 +240,7 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         name: "PeraConfort",
         shortDescription: lang === 'ro' ? "Spațiu generos și confort maxim pentru grupuri sau familii." : "Generous space and maximum comfort for groups or families.",
         description: lang === 'ro' ? "PeraConfort este alegerea ideală pentru cei care călătoresc în grup sau cu familia, oferind toate dotările necesare pentru un sejur relaxant și lipsit de griji." : "PeraConfort is the ideal choice for those traveling in groups or with family, offering all the necessary amenities for a relaxing and worry-free stay.",
-        pricePerNight: 324,
-        originalPrice: 360,
+        pricePerNight: 360,
         capacity: 4,
         rooms: 2,
         bathrooms: 1,
@@ -573,12 +494,6 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
 
                       <div className="flex items-center justify-between w-full p-10 bg-indigo-50/50 rounded-[2.5rem] border border-vibrant-indigo/10 group-hover:bg-vibrant-indigo group-hover:text-white transition-all duration-700">
                         <div>
-                          {apt.originalPrice && (
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="text-xs text-vibrant-rose line-through font-bold opacity-60">{apt.originalPrice} lei</span>
-                              <span className="bg-vibrant-rose text-white text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">OFFER</span>
-                            </div>
-                          )}
                           <div className="flex items-baseline gap-2">
                             <span className="text-4xl font-display font-black tracking-tighter">{apt.pricePerNight} lei</span>
                             <span className="opacity-50 text-[9px] uppercase font-black tracking-widest">/ night</span>
@@ -612,7 +527,6 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         )}
 
         {/* Why Choose Us Section - Overhaul */}
-        <SpecialOffers t={t} lang={lang} />
         <section className="py-40 bg-[#0a0a0a] text-white rounded-[4rem] px-12 md:px-24 my-40 relative overflow-hidden shadow-2xl">
           <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-white opacity-[0.03] rounded-full blur-[100px] -mr-[25vw] -mt-[25vw]"></div>
           

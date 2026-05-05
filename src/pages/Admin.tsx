@@ -1473,7 +1473,6 @@ export default function Admin() {
     { name: 'Apartamente', path: '/admin/apartments', icon: <HomeIcon size={18} /> },
     { name: 'Rezervări', path: '/admin/bookings', icon: <Calendar size={18} /> },
     { name: 'Blocaje Manuale', path: '/admin/blocks', icon: <Clock size={18} /> },
-    { name: 'Oferte', path: '/admin/offers', icon: <Tag size={18} /> },
     { name: 'Blog', path: '/admin/blog', icon: <FileText size={18} /> },
     { name: 'Setări', path: '/admin/settings', icon: <Settings size={18} /> },
   ];
@@ -1542,7 +1541,6 @@ export default function Admin() {
           <Route path="/apartments" element={<ApartmentsManager />} />
           <Route path="/bookings" element={<BookingsManager />} />
           <Route path="/blocks" element={<BlocksManager />} />
-          <Route path="/offers" element={<OffersManager />} />
           <Route path="/blog" element={<BlogManager />} />
           <Route path="/settings" element={<SettingsManager />} />
         </Routes>
