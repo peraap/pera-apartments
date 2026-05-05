@@ -16,6 +16,7 @@ try {
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
     if (serviceAccountEmail && privateKey) {
+      console.log(`[Firebase Admin] Attempting initialization with service account: ${serviceAccountEmail}`);
       app = initializeApp({
         credential: cert({
           projectId: firebaseConfig.projectId,
@@ -25,6 +26,7 @@ try {
       });
       console.log("[Firebase Admin] Initialized with Service Account Cert");
     } else {
+      console.log(`[Firebase Admin] No service account credentials found in environment. Using default for project: ${firebaseConfig.projectId}`);
       // Use application default credentials or just projectId if in Cloud Run
       app = initializeApp({
         projectId: firebaseConfig.projectId,
@@ -33,19 +35,23 @@ try {
     }
   } else {
     app = existingApps[0];
+    console.log("[Firebase Admin] Using existing app instance");
   }
   
   const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+  console.log(`[Firebase Admin] Database ID from config: ${dbId}`);
   
   // In firebase-admin v10+, specify database via first string argument OR provide app instance
   if (dbId === '(default)') {
     adminDb = getFirestore(app);
   } else {
     try {
+      console.log(`[Firebase Admin] Attempting to connect to named database: ${dbId}`);
       // In newer firebase-admin versions, this is the preferred way for named databases
       adminDb = getFirestore(app, dbId);
+      console.log(`[Firebase Admin] Successfully obtained Firestore instance for ${dbId}`);
     } catch (e) {
-      console.warn(`[Firebase Admin] Could not initialize with dbId ${dbId}, falling back to default:`, (e as Error).message);
+      console.error(`[Firebase Admin] CRITICAL: Could not initialize with dbId ${dbId}:`, (e as Error).message);
       adminDb = getFirestore(app);
     }
   }

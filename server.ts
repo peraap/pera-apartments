@@ -77,132 +77,10 @@ async function startServer() {
   const rootIndexExists = fs.existsSync(path.join(process.cwd(), 'index.html'));
   console.log(`[Server] root index.html exists: ${rootIndexExists} at ${process.cwd()}`);
 
-  // Sync routes - ABSOLUTELY HIGHEST PRIORITY
-  const handleSync = async (req: express.Request, res: express.Response) => {
-    console.log(`[API-SYNC-HIT] ${req.method} ${req.path} - Processing sync request`);
-    const targetSlug = req.query.slug as string;
-    const targetSource = req.query.source as string;
-    
-    try {
-      let apartmentsInDb: string[] = [];
-      try {
-        if (adminDb) {
-          try {
-            const snapshot = await adminDb.collection('apartments').get();
-            apartmentsInDb = snapshot.docs.map((doc: any) => doc.data().slug);
-          } catch (adminErr: any) {
-            if (adminErr.message?.includes('PERMISSION_DENIED')) {
-              console.warn("[Sync] Admin SDK restricted (Permission Denied). Using failover Client SDK.");
-            } else {
-              console.error("[Sync] Admin SDK fetch failure:", adminErr.message);
-            }
-          }
-        }
-        
-        if (apartmentsInDb.length === 0 && db) {
-          const snapshot = await getDocs(collection(db, 'apartments'));
-          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
-        }
-      } catch (e: any) {
-        console.error("[Sync] DB Fetch Error (Final):", e.message);
-      }
-
-      const masterList = [
-        'apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard',
-        'apartament-family-deluxe', 'peraduo', 'peraconfort',
-        'premium-king', 'deluxe-double', 'family-standard', 'family-deluxe'
-      ];
-
-      const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
-      const allSlugs = Array.from(new Set([...masterList, ...dbSlugs])).filter(Boolean);
-      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
-      
-      const finalResults: any[] = [];
-      for (const slug of syncApartments) {
-        const normalizedSlug = slug.toLowerCase().trim();
-        const roomResults: any[] = [];
-        
-        try {
-          const mapping: Record<string, string> = {
-            'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE',
-            'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE',
-            'peraduo': 'PERADUO', 'peraconfort': 'PERACONFORT',
-            'premium-king': 'PREMIUM_KING', 'deluxe-double': 'DELUXE_DOUBLE',
-            'family-standard': 'FAMILY_STANDARD', 'family-deluxe': 'FAMILY_DELUXE'
-          };
-          
-          const baseKey = mapping[normalizedSlug] || normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
-          const bookingUrl = process.env[`ICAL_BOOKING_${baseKey}`] || '';
-          const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`] || '';
-
-          if (!bookingUrl && !airbnbUrl) {
-            finalResults.push({ slug, source: 'Config', status: 'skipped', message: `No URLs for ${baseKey}` });
-            continue;
-          }
-
-          if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
-            try {
-              await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-              roomResults.push({ slug, source: 'Booking', status: 'success' });
-            } catch (err: any) { roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message }); }
-          }
-          
-          if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
-            try {
-              await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-              roomResults.push({ slug, source: 'Airbnb', status: 'success' });
-            } catch (err: any) { roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message }); }
-          }
-        } catch (roomError: any) {
-          roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
-        }
-        finalResults.push(...roomResults);
-      }
-      return res.json({ status: "Sync completed", results: finalResults });
-    } catch (error: any) {
-      console.error("[API-SYNC] Fatal Error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-  };
-
-  // Debug Logging Middleware
-  app.use((req, res, next) => {
-    // Skip logging for internal Vite assets/sources to reduce noise
-    const isAsset = req.path.startsWith('/src/') || 
-                     req.path.startsWith('/node_modules/') || 
-                     req.path.startsWith('/@') || 
-                     req.path.includes('.tsx') || 
-                     req.path.includes('.ts');
-
-    if (!isAsset) {
-      if (req.path.startsWith('/admin')) {
-        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      } else {
-        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      }
-    }
-    next();
-  });
-
-  // API Routes - Health Check first
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      version: "1.4.9",
-      env: process.env.NODE_ENV,
-      dbInitialized: !!db,
-      adminDbInitialized: !!adminDb
-    });
-  });
-
-  app.get("/api/debug-api", (req, res) => {
-    res.json({ status: "alive", path: req.path, time: new Date().toISOString() });
-  });
-
-  // iCal Export Handler (Declared before routes)
+  // iCal Export Handler (Declared at the top for maximum priority)
   const handleIcalExport = async (req: any, res: any) => {
     try {
-      console.log(`[iCal-Hit] ${req.method} ${req.originalUrl}`);
+      console.log(`[iCal-Hit-Priority] ${req.method} ${req.originalUrl} - Path: ${req.path}`);
       
       // Try to get slug from various sources
       let slug = req.params.slug || req.params[0] || req.path.split('/').pop() || '';
@@ -217,7 +95,7 @@ async function startServer() {
         return res.status(400).send("Slug required (ex: /api/export-ical/apartament-premium-king.ics)");
       }
 
-      console.log(`[iCal Export] Generating for: ${slug}`);
+      console.log(`[iCal Export] Generating calendar for slug: ${slug}`);
 
       const calendar = ical({ 
         name: `Pera Apartments - ${slug}`,
@@ -225,25 +103,30 @@ async function startServer() {
         method: ICalCalendarMethod.PUBLISH
       });
 
-      if (adminDb || db) {
-        // Fetch logic...
+      if (adminDb) {
+        // Fetch Bookings
         let querySnapshot;
         try {
-          if (adminDb) {
-            querySnapshot = await adminDb.collection('bookings')
-              .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
-              .get();
-          } else { throw new Error("ADMIN_MISSING"); }
+          console.log(`[iCal Export] fetching bookings using Admin SDK for ${slug}...`);
+          querySnapshot = await adminDb.collection('bookings')
+            .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
+            .get();
+          console.log(`[iCal Export] Found ${querySnapshot.size} bookings`);
         } catch (fetchError: any) {
-          const q = query(collection(db, 'bookings'), where('status', 'in', ['paid', 'confirmed', 'succeeded']));
-          querySnapshot = await getDocs(q);
+          console.error("[iCal Export] Admin SDK fetch failed:", fetchError.message);
+          // Don't fallback to client db here as it will fail with permissions anyway
+          // and masking the real error from Admin SDK
+          throw fetchError; 
         }
         
         let blocksSnapshot;
         try {
-          if (adminDb) { blocksSnapshot = await adminDb.collection('manual_blocks').get(); }
-          else { blocksSnapshot = await getDocs(collection(db, 'manual_blocks')); }
-        } catch (e) { blocksSnapshot = { forEach: () => {} }; }
+          blocksSnapshot = await adminDb.collection('manual_blocks').get();
+          console.log(`[iCal Export] Found ${blocksSnapshot.size} manual blocks`);
+        } catch (e: any) { 
+          console.error("[iCal Export] Blocks fetch failed:", e.message);
+          blocksSnapshot = { forEach: () => {} }; 
+        }
 
         let hasEvents = false;
         const searchSlug = slug.toLowerCase();
@@ -336,20 +219,172 @@ async function startServer() {
     }
   };
 
-  // Register iCal routes with High Priority
-  app.get(["/api/ical/:slug", "/api/export-ical/:slug", "/export-ical/:slug"], handleIcalExport);
-  app.get(["/api/ical/*", "/api/export-ical/*", "/export-ical/*"], handleIcalExport);
+  app.get("/api/debug-firestore", async (req, res) => {
+    const results: any = {
+      firebaseConfig: { projectId: firebaseConfig.projectId, databaseId: firebaseConfig.firestoreDatabaseId },
+      adminDbInitialized: !!adminDb,
+      clientDbInitialized: !!db
+    };
 
-  // Sync routes
-  app.all("/api/sync", (req, res) => { handleSync(req, res); });
-  app.all("/api/sync-calendar", (req, res) => { handleSync(req, res); });
-  app.all("/api/sync-calendars", (req, res) => { handleSync(req, res); });
+    try {
+      if (adminDb) {
+        const snap = await adminDb.collection('apartments').limit(1).get();
+        results.adminAccess = { status: 'success', count: snap.size };
+      } else {
+        results.adminAccess = { status: 'missing' };
+      }
+    } catch (err: any) {
+      results.adminAccess = { status: 'failed', error: err.message };
+    }
 
-  // Removing duplicate sync-calendars
+    try {
+      if (db) {
+        const snap = await getDocs(collection(db, 'apartments'));
+        results.clientAccess = { status: 'success', count: snap.size };
+      } else {
+        results.clientAccess = { status: 'missing' };
+      }
+    } catch (err: any) {
+      results.clientAccess = { status: 'failed', error: err.message };
+    }
 
-  // Cors is now handled above manually in startServer
-  // Removing duplicate or misplaced middleware block
+    res.json(results);
+  });
 
+  // 0. Register iCal routes IMMEDIATELY after CORS for highest priority
+  app.get("/api/export-ical/:slug", handleIcalExport);
+  app.get("/api/ical/:slug", handleIcalExport);
+  app.get("/export-ical/:slug", handleIcalExport);
+  app.get("/api/export-ical/:slug.ics", handleIcalExport);
+  app.get("/api/ical/:slug.ics", handleIcalExport);
+  app.get("/export-ical/:slug.ics", handleIcalExport);
+
+  const handleSync = async (req: express.Request, res: express.Response) => {
+    console.log(`[API-SYNC-HIT] ${req.method} ${req.path} - Processing sync request`);
+    const targetSlug = req.query.slug as string;
+    const targetSource = req.query.source as string;
+    
+    try {
+      let apartmentsInDb: string[] = [];
+      try {
+        if (adminDb) {
+          try {
+            const snapshot = await adminDb.collection('apartments').get();
+            apartmentsInDb = snapshot.docs.map((doc: any) => doc.data().slug);
+          } catch (adminErr: any) {
+            if (adminErr.message?.includes('PERMISSION_DENIED')) {
+              console.warn("[Sync] Admin SDK restricted (Permission Denied). Using failover Client SDK.");
+            } else {
+              console.error("[Sync] Admin SDK fetch failure:", adminErr.message);
+            }
+          }
+        }
+        
+        if (apartmentsInDb.length === 0 && db) {
+          const snapshot = await getDocs(collection(db, 'apartments'));
+          apartmentsInDb = snapshot.docs.map(doc => doc.data().slug);
+        }
+      } catch (e: any) {
+        console.error("[Sync] DB Fetch Error (Final):", e.message);
+      }
+
+      const masterList = [
+        'apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard',
+        'apartament-family-deluxe', 'peraduo', 'peraconfort',
+        'premium-king', 'deluxe-double', 'family-standard', 'family-deluxe'
+      ];
+
+      const dbSlugs = (apartmentsInDb || []).map(s => s.toLowerCase().trim());
+      const allSlugs = Array.from(new Set([...masterList, ...dbSlugs])).filter(Boolean);
+      const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : allSlugs;
+      
+      const finalResults: any[] = [];
+      for (const slug of syncApartments) {
+        const normalizedSlug = slug.toLowerCase().trim();
+        const roomResults: any[] = [];
+        
+        try {
+          const mapping: Record<string, string> = {
+            'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE',
+            'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE',
+            'peraduo': 'PERADUO', 'peraconfort': 'PERACONFORT',
+            'premium-king': 'PREMIUM_KING', 'deluxe-double': 'DELUXE_DOUBLE',
+            'family-standard': 'FAMILY_STANDARD', 'family-deluxe': 'FAMILY_DELUXE'
+          };
+          
+          const baseKey = mapping[normalizedSlug] || normalizedSlug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
+          const bookingUrl = process.env[`ICAL_BOOKING_${baseKey}`] || '';
+          const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`] || '';
+
+          if (!bookingUrl && !airbnbUrl) {
+            finalResults.push({ slug, source: 'Config', status: 'skipped', message: `No URLs for ${baseKey}` });
+            continue;
+          }
+
+          if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
+            try {
+              await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
+              roomResults.push({ slug, source: 'Booking', status: 'success' });
+            } catch (err: any) { roomResults.push({ slug, source: 'Booking', status: 'error', message: err.message }); }
+          }
+          
+          if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
+            try {
+              await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
+              roomResults.push({ slug, source: 'Airbnb', status: 'success' });
+            } catch (err: any) { roomResults.push({ slug, source: 'Airbnb', status: 'error', message: err.message }); }
+          }
+        } catch (roomError: any) {
+          roomResults.push({ slug, source: 'General', status: 'error', message: roomError.message });
+        }
+        finalResults.push(...roomResults);
+      }
+      return res.json({ status: "Sync completed", results: finalResults });
+    } catch (error: any) {
+      console.error("[API-SYNC] Fatal Error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  };
+
+  // Sync routes - ABSOLUTELY HIGHEST PRIORITY
+  app.all(["/api/sync", "/api/sync-calendar", "/api/sync-calendars"], (req: any, res: any) => { handleSync(req, res); });
+
+  // Debug Logging Middleware
+  app.use((req, res, next) => {
+    // Skip logging for internal Vite assets/sources to reduce noise
+    const isAsset = req.path.startsWith('/src/') || 
+                     req.path.startsWith('/node_modules/') || 
+                     req.path.startsWith('/@') || 
+                     req.path.includes('.tsx') || 
+                     req.path.includes('.ts');
+
+    if (!isAsset) {
+      if (req.path.startsWith('/admin')) {
+        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      } else {
+        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      }
+    }
+    next();
+  });
+
+  // API Routes - Health Check first
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      version: "1.4.9",
+      env: process.env.NODE_ENV,
+      dbInitialized: !!db,
+      adminDbInitialized: !!adminDb
+    });
+  });
+
+  app.get("/api/debug-api", (req, res) => {
+    res.json({ status: "alive", path: req.path, time: new Date().toISOString() });
+  });
+
+  // CORS is already handled manually at the top
+  
   // Webhook needs raw body for signature verification
   app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'] as string;

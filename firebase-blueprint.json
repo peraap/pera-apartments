@@ -138,6 +138,18 @@
         "minNights": { "type": "integer" }
       },
       "required": ["title", "description", "discountType", "discountValue", "startDate", "endDate", "isActive"]
+    },
+    "manualBlock": {
+      "title": "Manual Block",
+      "description": "A manual calendar blockage for maintenance or external bookings.",
+      "type": "object",
+      "properties": {
+        "apartmentId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "reason": { "type": "string" }
+      },
+      "required": ["apartmentId", "startDate", "endDate"]
     }
   },
   "firestore": {
@@ -176,6 +188,10 @@
     "/specialOffers/{offerId}": {
       "schema": "specialOffer",
       "description": "Collection of promotional offers and packages."
+    },
+    "/manual_blocks/{blockId}": {
+      "schema": "manualBlock",
+      "description": "Collection of manual calendar blocks."
     }
   }
 }

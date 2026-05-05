@@ -38,7 +38,6 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Legal = lazy(() => import('./pages/Legal'));
 const Auth = lazy(() => import('./pages/Auth'));
 const BookingSuccess = lazy(() => import('./pages/BookingSuccess'));
-import { DiscountPopup } from './components/DiscountPopup';
 
 const translations = {
   ro: {
@@ -671,7 +670,6 @@ const AppContent = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 
         </SkewScroll>
       </main>
       <Footer lang={lang} />
-      <DiscountPopup />
       <Toaster position="top-center" richColors />
 
       {/* Back to Top Button */}

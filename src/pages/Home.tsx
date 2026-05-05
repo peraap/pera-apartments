@@ -633,92 +633,6 @@ const Testimonials = ({ t }: { t: any }) => {
   );
 };
 
-const SpecialOffers = ({ t }: { t: any }) => {
-  const [offers, setOffers] = useState<SpecialOfferType[]>([]);
-
-  useEffect(() => {
-    const q = query(collection(db, 'specialOffers'), where('isActive', '==', true));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setOffers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpecialOfferType)));
-    });
-    return unsub;
-  }, []);
-
-  if (offers.length === 0) return null;
-
-  return (
-    <section className="py-40 bg-white relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-neutral-50 rounded-full blur-[120px] -mr-64 -mt-64 opacity-50"></div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-24">
-          <Reveal3D>
-            <span className="text-[10px] uppercase tracking-[0.5em] font-black text-neutral-400 mb-8 block">{t.offersSub}</span>
-            <h2 className="text-5xl md:text-8xl font-display font-black mb-10 leading-[0.9] text-neutral-900 tracking-tighter">
-              <TextReveal text={t.offersTitle} />
-              <span className="italic font-light text-neutral-300 block">
-                <TextReveal text={t.offersTitleItalic} />
-              </span>
-            </h2>
-          </Reveal3D>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {offers.map((offer, i) => (
-            <SmoothIn key={offer.id} direction="up" delay={i * 0.1}>
-              <NanoBanana>
-                <TiltCard className="h-full">
-                  <GlowWrapper className="h-full">
-                    <div className="bg-indigo-50/30 rounded-[3rem] p-12 h-full border border-indigo-100 shadow-2xl flex flex-col group relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-8">
-                        <div className="w-12 h-12 bg-vibrant-rose text-white rounded-2xl flex items-center justify-center transform rotate-12 group-hover:rotate-0 transition-transform shadow-xl">
-                          <Tag size={20} />
-                        </div>
-                      </div>
-                      
-                      <div className="mb-10">
-                        <div className="inline-block px-4 py-2 bg-vibrant-indigo text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-full mb-6 shadow-lg">
-                          {offer.discountValue}{offer.discountType === 'percentage' ? '%' : ' RON'} DISCOUNT
-                        </div>
-                        <h3 className="text-3xl font-display font-black mb-4 tracking-tight leading-tight group-hover:text-vibrant-indigo transition-colors">{offer.title}</h3>
-                        <p className="text-sm text-neutral-600 leading-relaxed font-medium line-clamp-4">
-                          {offer.description}
-                        </p>
-                      </div>
-
-                    <div className="mt-auto space-y-6 pt-10 border-t border-neutral-100">
-                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-neutral-400">
-                        <span>Valabilitate</span>
-                        <span className="text-black">{new Date(offer.startDate).toLocaleDateString('ro-RO')} - {new Date(offer.endDate).toLocaleDateString('ro-RO')}</span>
-                      </div>
-                      {offer.minNights && offer.minNights > 1 && (
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-neutral-400">
-                          <span>Condiție</span>
-                          <span className="text-black">{offer.minNights} {t.offersMinNights}</span>
-                        </div>
-                      )}
-                      <Magnetic>
-                        <Link 
-                          to="/apartamente"
-                          className="w-full py-6 bg-black text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl flex items-center justify-center hover:bg-neutral-800 transition-all shadow-xl group/btn"
-                        >
-                          {t.offersBtnBook}
-                          <ArrowRight className="ml-3 group-hover/btn:translate-x-2 transition-transform" size={16} />
-                        </Link>
-                      </Magnetic>
-                    </div>
-                  </div>
-                </GlowWrapper>
-              </TiltCard>
-            </NanoBanana>
-          </SmoothIn>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
 const FAQ = ({ t }: { t: any }) => {
   const items = [
     { q: t.faq1Q, a: t.faq1A },
@@ -916,7 +830,6 @@ export default function Home({ lang }: { lang: 'ro' | 'en' }) {
       <Hero t={t} />
       <Features t={t} />
       <ApartmentPreview t={t} lang={lang} />
-      <SpecialOffers t={t} />
       <TennisCourt t={t} />
       
       {/* About Section */}
