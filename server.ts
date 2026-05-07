@@ -61,34 +61,33 @@ async function startServer() {
   const PORT = 3000;
   const distPath = path.join(process.cwd(), 'dist');
 
-  console.log("[Server] Registering core middleware...");
-  
-  // 0. ABSOLUTE FIRST LOGGER
+  console.log("[Server] Registering diagnostic logger...");
   app.use((req, res, next) => {
-    console.log(`[INCOMING] ${req.method} ${req.url} - ${new Date().toISOString()}`);
+    console.log(`[REQUEST] ${req.method} ${req.url} - ${new Date().toISOString()}`);
     next();
   });
 
-  // 1. TOP PRIORITY HEALTH CHECK
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      version: "1.6.0-REWORK",
-      env: process.env.NODE_ENV,
-      port: PORT,
-      adminDb: !!adminDb
-    });
-  });
-
-  // 2. CORS (Global)
+  console.log("[Server] Configuring CORS and security...");
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
   }));
 
-  // 3. STRIPE WEBHOOK (Needs raw body, MUST be before express.json())
+  // 1. HEALTH CHECK (MUST be before any complex middleware)
+  app.get("/api/health", (req, res) => {
+    console.log("[Health] Responding to health check...");
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      version: "1.6.2-FIX",
+      env: process.env.NODE_ENV,
+      adminDb: !!adminDb,
+      clientDb: !!db
+    });
+  });
+
+  // 2. STRIPE WEBHOOK (Needs raw body, MUST be before express.json())
   app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'] as string;
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -145,13 +144,14 @@ async function startServer() {
     res.json({ received: true });
   });
 
-  // 4. JSON BODY PARSER (For all other JSON routes)
+  // 3. JSON BODY PARSER
+  console.log("[Server] Registering JSON parser...");
   app.use(express.json());
 
-  // 5. API ROUTE HANDLERS
+  // 4. API ROUTE HANDLERS
   async function handleIcalExport(req: any, res: any) {
     try {
-      console.log(`[iCal-HIT] ${new Date().toISOString()} | Method: ${req.method} | Path: ${req.path}`);
+      console.log(`[iCal-HIT] ${new Date().toISOString()} | Path: ${req.path}`);
       let slug = req.params.slug || req.path.split('/').pop() || '';
       if (slug.toLowerCase().endsWith('.ics')) slug = slug.substring(0, slug.length - 4);
       if (!slug) return res.status(400).send("Slug required");
@@ -216,7 +216,6 @@ async function startServer() {
       const targetSlug = req.query.slug as string;
       const masterList = ['apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard', 'apartament-family-deluxe', 'peraduo', 'peraconfort'];
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : masterList;
-      const results: any[] = [];
       const mapping: Record<string, string> = {
         'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE',
         'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE',
@@ -229,13 +228,13 @@ async function startServer() {
         if (bookingUrl) await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com').catch(e => console.error(e));
         if (airbnbUrl) await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb').catch(e => console.error(e));
       }
-      return res.json({ status: "Sync triggered", results });
+      return res.json({ status: "Sync triggered" });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }
   }
 
-  // 6. API ROUTES REGISTRATION
+  console.log("[Server] Registering API routes...");
   app.all("/api/sync", handleSync);
   app.all("/api/sync-calendar", handleSync);
   app.all("/api/sync-calendars", handleSync);
@@ -311,36 +310,51 @@ async function startServer() {
     res.json(results);
   });
 
-  // Final API catch-all
+  // Final catch-all for any /api/* route that didn't match
   app.all("/api/*", (req, res) => {
     console.warn(`[API-404] No match for ${req.method} ${req.url}`);
     res.status(404).json({ error: "API route not found", path: req.url });
   });
 
-  // 7. START LISTENING (CRITICAL)
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-
-  // 8. VITE / STATIC FILES
+  // 5. VITE / STATIC FILES
   if (process.env.NODE_ENV !== "production") {
+    console.log("[Server] Configuring Vite middleware for development...");
     const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({ root: process.cwd(), server: { middlewareMode: true, host: '0.0.0.0' }, appType: "spa" });
+    const vite = await createViteServer({ 
+      root: process.cwd(), 
+      server: { 
+        middlewareMode: true, 
+        host: '0.0.0.0',
+        hmr: false 
+      }, 
+      appType: "spa" 
+    });
     app.use(vite.middlewares);
+    
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
+      console.log(`[SPA-Fallback] Serving index.html for ${req.url}`);
       res.sendFile(path.join(process.cwd(), 'index.html'));
     });
   } else {
+    console.log("[Server] Configuring static files for production...");
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: "API route not found" });
+      console.log(`[Production-Fallback] Serving index.html for ${req.url}`);
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  // 9. BACKGROUND SYNC
+  // 6. START LISTENING
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Server] L-A-N-S-A-T pe portul ${PORT} în mod ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[Server] Health check disponibil la /api/health`);
+  });
+
+  // 7. BACKGROUND SYNC
   const runFullSync = async () => {
+    console.log("[Background Sync] Starting full sync...");
     const apartments = ['apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard', 'apartament-family-deluxe', 'peraduo', 'peraconfort'];
     for (const slug of apartments) {
       try {
