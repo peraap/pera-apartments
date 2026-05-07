@@ -61,31 +61,34 @@ async function startServer() {
   const PORT = 3000;
   const distPath = path.join(process.cwd(), 'dist');
 
+  // ----- IMMEDIATE LISTEN (CRITICAL FOR PLATFORM HEALTH) -----
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Server] PORT OPEN: Listening on port ${PORT}`);
+  });
+
   console.log("[Server] Registering diagnostic logger...");
   app.use((req, res, next) => {
     console.log(`[REQUEST] ${req.method} ${req.url} - ${new Date().toISOString()}`);
     next();
   });
 
-  console.log("[Server] Configuring CORS and security...");
+  // 1. HEALTH CHECK (MUST be first)
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      version: "1.6.6-FINAL-FIX",
+      env: process.env.NODE_ENV,
+      adminDb: !!adminDb
+    });
+  });
+
+  // 1.5 CORS (Crucial for frontend)
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
   }));
-
-  // 1. HEALTH CHECK (MUST be before any complex middleware)
-  app.get("/api/health", (req, res) => {
-    console.log("[Health] Responding to health check...");
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      version: "1.6.2-FIX",
-      env: process.env.NODE_ENV,
-      adminDb: !!adminDb,
-      clientDb: !!db
-    });
-  });
 
   // 2. STRIPE WEBHOOK (Needs raw body, MUST be before express.json())
   app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
@@ -345,12 +348,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
-
-  // 6. START LISTENING
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Server] L-A-N-S-A-T pe portul ${PORT} în mod ${process.env.NODE_ENV || 'development'}`);
-    console.log(`[Server] Health check disponibil la /api/health`);
-  });
 
   // 7. BACKGROUND SYNC
   const runFullSync = async () => {
