@@ -61,34 +61,100 @@ async function startServer() {
   const PORT = 3000;
   const distPath = path.join(process.cwd(), 'dist');
 
-  app.use(express.json());
+  console.log("[Server] Registering core middleware...");
   
-  // 1. Global Trace & CORS
+  // 0. ABSOLUTE FIRST LOGGER
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) {
-      console.log(`[API-TRACE] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-    }
+    console.log(`[INCOMING] ${req.method} ${req.url} - ${new Date().toISOString()}`);
     next();
   });
 
+  // 1. TOP PRIORITY HEALTH CHECK
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      version: "1.6.0-REWORK",
+      env: process.env.NODE_ENV,
+      port: PORT,
+      adminDb: !!adminDb
+    });
+  });
+
+  // 2. CORS (Global)
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
   }));
 
-  // ----- CRITICAL API ROUTES HANDLERS & REGISTRATION -----
+  // 3. STRIPE WEBHOOK (Needs raw body, MUST be before express.json())
+  app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
+    const sig = req.headers['stripe-signature'] as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    let event;
+    try {
+      if (!stripe) throw new Error("Stripe is not initialized");
+      if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET is missing");
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err: any) {
+      console.error(`Webhook Error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      try {
+        const metadata = session.metadata;
+        if (metadata) {
+            const bookingData = {
+              apartmentId: metadata.apartmentId,
+              apartmentName: metadata.apartmentName || 'Apartament Pera',
+              checkIn: metadata.checkIn,
+              checkOut: metadata.checkOut,
+              guestName: metadata.guestName,
+              guestEmail: metadata.guestEmail,
+              totalPrice: parseFloat(metadata.totalPrice || '0'),
+              status: 'confirmed',
+              paymentIntentId: session.payment_intent as string,
+              sessionId: session.id,
+              createdAt: new Date().toISOString(),
+              source: 'stripe_webhook'
+            };
+            if (db) await addDoc(collection(db, 'bookings'), bookingData);
+            try { 
+              await Promise.all([
+                logBookingToSheet(bookingData), 
+                addBookingToCalendar(bookingData)
+              ]); 
+            } catch (syncError) { console.error("Sync Error:", syncError); }
+            
+            const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
+            if (metadata.guestEmail) recipients.push(metadata.guestEmail);
+            try {
+              await transporter.sendMail({
+                from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
+                to: recipients, 
+                subject: 'Confirmare Rezervare - Pera Apartments',
+                html: `<h2>Rezervare Nouă Confirmată!</h2><p>Oaspete: ${metadata.guestName}</p><p>Apartament: ${metadata.apartmentName}</p>`
+              });
+            } catch (emailError) { console.error("Email Error:", emailError); }
+        }
+      } catch (error) { console.error("Webhook processing error:", error); }
+    }
+    res.json({ received: true });
+  });
+
+  // 4. JSON BODY PARSER (For all other JSON routes)
+  app.use(express.json());
+
+  // 5. API ROUTE HANDLERS
   async function handleIcalExport(req: any, res: any) {
     try {
-      console.log(`[iCal-HIT] ${new Date().toISOString()} | Method: ${req.method} | URL: ${req.originalUrl} | Path: ${req.path}`);
-      
+      console.log(`[iCal-HIT] ${new Date().toISOString()} | Method: ${req.method} | Path: ${req.path}`);
       let slug = req.params.slug || req.path.split('/').pop() || '';
-      if (slug.startsWith('/')) slug = slug.substring(1);
       if (slug.toLowerCase().endsWith('.ics')) slug = slug.substring(0, slug.length - 4);
-      
-      if (!slug || ['api', 'ical', 'export-ical'].includes(slug.toLowerCase())) {
-        return res.status(400).send("Slug required");
-      }
+      if (!slug) return res.status(400).send("Slug required");
 
       const calendar = ical({ 
         name: `Pera Apartments - ${slug}`,
@@ -101,26 +167,17 @@ async function startServer() {
             .where('status', 'in', ['paid', 'confirmed', 'succeeded'])
             .get();
         
-        let blocksSnapshot: any = { forEach: (_cb: any) => {} };
+        let blocksSnapshot: any = { forEach: () => {} };
         try { blocksSnapshot = await adminDb.collection('manual_blocks').get(); } catch (e) {}
 
         const searchSlug = slug.toLowerCase();
         const searchName = searchSlug.replace(/-/g, ' ');
-        const slugAliases: Record<string, string[]> = {
-          'premium-king': ['1', 'apartament-premium-king', 'camera king', 'king room'],
-          'deluxe-double': ['2', 'apartament-deluxe-double', 'camera dubla deluxe', 'deluxe double'],
-          'family-deluxe': ['3', 'apartament-family-deluxe', 'camera de familie deluxe', 'family deluxe'],
-          'family-standard': ['4', 'apartament-family-standard', 'camera de familie standard', 'family standard'],
-          'peraduo': ['5', 'pera-duo', 'peraduo'],
-          'peraconfort': ['6', 'pera-confort', 'peraconfort']
-        };
-        const aliases = slugAliases[searchSlug] || [];
-
+        
         querySnapshot.forEach((doc: any) => {
           const booking = doc.data();
           const aptId = (booking.apartmentId || '').toLowerCase();
           const aptName = (booking.apartmentName || '').toLowerCase();
-          if (aptId === searchSlug || aliases.includes(aptId) || aptName.includes(searchName)) {
+          if (aptId === searchSlug || aptName.includes(searchName)) {
             calendar.createEvent({
               start: new Date(booking.checkIn),
               end: new Date(booking.checkOut),
@@ -155,71 +212,35 @@ async function startServer() {
   }
 
   async function handleSync(req: express.Request, res: express.Response) {
-    console.log(`[SYNC-HIT] ${new Date().toISOString()} | Method: ${req.method} | Path: ${req.path}`);
     try {
       const targetSlug = req.query.slug as string;
-      const targetSource = req.query.source as string;
       const masterList = ['apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard', 'apartament-family-deluxe', 'peraduo', 'peraconfort'];
       const syncApartments = targetSlug ? [targetSlug.toLowerCase().trim()] : masterList;
-      
       const results: any[] = [];
+      const mapping: Record<string, string> = {
+        'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE',
+        'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE',
+        'peraduo': 'PERADUO', 'peraconfort': 'PERACONFORT'
+      };
       for (const slug of syncApartments) {
-        const mapping: Record<string, string> = {
-          'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE',
-          'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE',
-          'peraduo': 'PERADUO', 'peraconfort': 'PERACONFORT',
-          'premium-king': 'PREMIUM_KING', 'deluxe-double': 'DELUXE_DOUBLE',
-          'family-standard': 'FAMILY_STANDARD', 'family-deluxe': 'FAMILY_DELUXE'
-        };
-        const baseKey = mapping[slug.toLowerCase().trim()] || slug.toUpperCase().replace(/-/g, '_');
+        const baseKey = mapping[slug] || slug.toUpperCase().replace(/-/g, '_');
         const bookingUrl = process.env[`ICAL_BOOKING_${baseKey}`];
         const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`];
-
-        if (bookingUrl && (!targetSource || targetSource.toLowerCase() === 'booking')) {
-          try { await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com'); results.push({ slug, source: 'Booking', status: 'success' }); } 
-          catch (err: any) { results.push({ slug, source: 'Booking', status: 'error', message: err.message }); }
-        }
-        if (airbnbUrl && (!targetSource || targetSource.toLowerCase() === 'airbnb')) {
-          try { await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb'); results.push({ slug, source: 'Airbnb', status: 'success' }); } 
-          catch (err: any) { results.push({ slug, source: 'Airbnb', status: 'error', message: err.message }); }
-        }
+        if (bookingUrl) await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com').catch(e => console.error(e));
+        if (airbnbUrl) await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb').catch(e => console.error(e));
       }
-      return res.json({ status: "Sync completed", results });
+      return res.json({ status: "Sync triggered", results });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }
   }
 
-  // ----- API ROUTES START -----
-  console.log("[Server] Registering API routes...");
-
-  // exact match for health
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      version: "1.5.5-STABLE",
-      env: process.env.NODE_ENV,
-      adminDbInitialized: !!adminDb
-    });
-  });
-
-  // Sync routes
+  // 6. API ROUTES REGISTRATION
   app.all("/api/sync", handleSync);
   app.all("/api/sync-calendar", handleSync);
   app.all("/api/sync-calendars", handleSync);
+  app.get(["/api/ical/:slug", "/api/ical/:slug.ics", "/api/export-ical/:slug", "/api/export-ical/:slug.ics"], handleIcalExport);
 
-  // iCal Exports
-  app.get([
-    "/api/ical/:slug", 
-    "/api/ical/:slug.ics", 
-    "/api/export-ical/:slug", 
-    "/api/export-ical/:slug.ics", 
-    "/export-ical/:slug", 
-    "/export-ical/:slug.ics"
-  ], handleIcalExport);
-
-  // Sheets & Logs
   app.get("/api/sheet-bookings", async (req, res) => {
     try {
       const auth = await getSheetsAuth();
@@ -232,21 +253,8 @@ async function startServer() {
   });
 
   app.get("/api/blocked-dates/:slug", async (req, res) => {
-    try {
-      const blockedDates = await getApartmentBlockedDates(req.params.slug);
-      res.json({ blockedDates });
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
-  });
-
-  app.get("/api/log-login", async (req, res) => {
-    try {
-      const auth = await getSheetsAuth();
-      const sheets = google.sheets({ version: 'v4', auth });
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEET_ID, range: 'Autentificari!A2:E100',
-      });
-      res.json({ logs: response.data.values || [] });
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
+    try { res.json({ blockedDates: await getApartmentBlockedDates(req.params.slug) }); }
+    catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
   app.post("/api/log-login", async (req, res) => {
@@ -254,7 +262,6 @@ async function startServer() {
     catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
-  // Emails & Checkout Sessions
   app.post("/api/send-discount-email", async (req, res) => {
     try {
       const { email, name } = req.body;
@@ -298,210 +305,55 @@ async function startServer() {
     } catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
-  app.post("/api/send-confirmation-email", async (req, res) => {
-    try {
-      const { metadata } = req.body;
-      if (!metadata || !metadata.guestEmail) return res.status(400).json({ error: "Date insuficiente" });
-      const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com', metadata.guestEmail];
-      await transporter.sendMail({
-        from: `"Pera Apartments" <${process.env.GMAIL_USER}>`,
-        to: recipients, subject: 'Confirmare Rezervare - Pera Apartments',
-        html: `<h2>Rezervare Confirmată!</h2><p>Apartament: ${metadata.apartmentName}</p>`
-      });
-      res.json({ success: true });
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
-  });
-
   app.get("/api/debug-firestore", async (req, res) => {
     const results: any = { adminDb: !!adminDb, clientDb: !!db };
     try { if (adminDb) results.count = (await adminDb.collection('apartments').get()).size; } catch(e:any) { results.err = e.message; }
     res.json(results);
   });
 
-  // Webhook needs raw body for signature verification - MUST be defined before the general /api/* catch-all
-  app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
-    const sig = req.headers['stripe-signature'] as string;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    let event;
-    try {
-      if (!stripe) throw new Error("Stripe is not initialized");
-      if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET is missing");
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    } catch (err: any) {
-      console.error(`Webhook Error: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      try {
-        const metadata = session.metadata;
-        if (metadata) {
-            const bookingData = {
-              apartmentId: metadata.apartmentId,
-              apartmentName: metadata.apartmentName || 'Apartament Pera',
-              checkIn: metadata.checkIn,
-              checkOut: metadata.checkOut,
-              guestName: metadata.guestName,
-              guestEmail: metadata.guestEmail,
-              totalPrice: parseFloat(metadata.totalPrice),
-              status: 'confirmed',
-              paymentIntentId: session.payment_intent as string,
-              sessionId: session.id,
-              createdAt: new Date().toISOString(),
-              source: 'stripe_webhook_preview'
-            };
-            if (db) await addDoc(collection(db, 'bookings'), bookingData);
-            try { await Promise.all([logBookingToSheet(bookingData), addBookingToCalendar(bookingData)]); } catch (syncError) { console.error("Sync Error:", syncError); }
-            const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
-            if (metadata.guestEmail) recipients.push(metadata.guestEmail);
-            try {
-              await transporter.sendMail({
-                from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
-                to: recipients, subject: 'Confirmare Rezervare - Pera Apartments',
-                html: `<h2>Rezervare Nouă Confirmată!</h2><p>Oaspete: ${metadata.guestName}</p><p>Apartament: ${metadata.apartmentName}</p>`
-              });
-            } catch (emailError) { console.error("Email Error:", emailError); }
-        }
-      } catch (error) { console.error("Webhook processing error:", error); }
-    }
-    res.json({ received: true });
-  });
-
-  // Final catch-all for any /api/* route that didn't match
+  // Final API catch-all
   app.all("/api/*", (req, res) => {
-    console.warn(`[API-404] No match for ${req.method} ${req.path}`);
-    res.status(404).json({ error: "Route not found", path: req.path });
+    console.warn(`[API-404] No match for ${req.method} ${req.url}`);
+    res.status(404).json({ error: "API route not found", path: req.url });
   });
 
-  console.log("[Server] API routes registration completed.");
-  // ----- API ROUTES END -----
-
-  // Debug Logging Middleware
-  app.use((req, res, next) => {
-    // Skip logging for internal Vite assets/sources to reduce noise
-    const isAsset = req.path.startsWith('/src/') || 
-                     req.path.startsWith('/node_modules/') || 
-                     req.path.startsWith('/@') || 
-                     req.path.includes('.tsx') || 
-                     req.path.includes('.ts');
-
-    if (!isAsset) {
-      if (req.path.startsWith('/admin')) {
-        console.log(`[ADMIN-LOG] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      } else {
-        console.log(`[Request] ${req.method} ${req.path} - ${new Date().toISOString()}`);
-      }
-    }
-    next();
+  // 7. START LISTENING (CRITICAL)
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 
-  // Webhook and catch-all are now handled in the consolidated section above.
-  
-  // 3. VITE / STATIC FILES (Must be after API)
-  
+  // 8. VITE / STATIC FILES
   if (process.env.NODE_ENV !== "production") {
-    console.log("[Server] Configuring Vite middleware for development");
     const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      root: process.cwd(),
-      server: { 
-        middlewareMode: true,
-        host: '0.0.0.0',
-      },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ root: process.cwd(), server: { middlewareMode: true, host: '0.0.0.0' }, appType: "spa" });
     app.use(vite.middlewares);
-    
-    // Explicit route for /admin to ensure it hits React Router
-    app.get(['/admin', '/admin/*'], (req, res, next) => {
-      if (req.path.startsWith('/api/')) return next();
-      console.log(`[Admin Fallback] Serving index.html for ${req.path}`);
-      res.sendFile(path.join(process.cwd(), 'index.html'));
-    });
-
-    // Explicitly handle SPA fallback in dev if Vite middleware misses it for some reason
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
-      console.log(`[Dev Fallback] Serving index.html for ${req.path}`);
       res.sendFile(path.join(process.cwd(), 'index.html'));
     });
   } else {
-    console.log("[Server] Configuring static files for production");
-    // In production, everything from public is already in dist
     app.use(express.static(distPath));
-    
-    app.get(['/admin', '/admin/*'], (req, res) => {
-      console.log(`[Production Admin] Serving index.html for ${req.path}`);
-      const indexPath = path.join(distPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        console.error("[Fatal] dist/index.html not found!");
-        res.status(404).send("Error: Application not built correctly (index.html missing)");
-      }
-    });
-
     app.get('*', (req, res) => {
-      if (req.path.startsWith('/api/')) {
-        console.warn(`[404] API Not Found: ${req.path}`);
-        return res.status(404).json({ error: "API route not found" });
-      }
-      console.log(`[Production Fallback] Serving index.html for ${req.path}`);
-      const indexPath = path.join(distPath, 'index.html');
-      res.sendFile(indexPath);
+      if (req.path.startsWith('/api/')) return res.status(404).json({ error: "API route not found" });
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  // ----- BACKGROUND SYNC TASK -----
+  // 9. BACKGROUND SYNC
   const runFullSync = async () => {
-    console.log(`[Background Sync] Starting full iCal -> Google Calendar sync at ${new Date().toISOString()}`);
-    const apartments = [
-      'apartament-premium-king',
-      'apartament-deluxe-double',
-      'apartament-family-standard',
-      'apartament-family-deluxe',
-      'peraduo',
-      'peraconfort'
-    ];
-
-    const mapping: Record<string, string> = {
-      'apartament-premium-king': 'PREMIUM_KING',
-      'apartament-deluxe-double': 'DELUXE_DOUBLE',
-      'apartament-family-standard': 'FAMILY_STANDARD',
-      'apartament-family-deluxe': 'FAMILY_DELUXE',
-      'peraduo': 'PERADUO',
-      'peraconfort': 'PERACONFORT'
-    };
-
+    const apartments = ['apartament-premium-king', 'apartament-deluxe-double', 'apartament-family-standard', 'apartament-family-deluxe', 'peraduo', 'peraconfort'];
     for (const slug of apartments) {
       try {
-        const baseKey = mapping[slug] || slug.replace('apartament-', '').replace(/-/g, '_').toUpperCase();
-        const bookingUrl = process.env[`ICAL_BOOKING_${baseKey}`];
-        const airbnbUrl = process.env[`ICAL_AIRBNB_${baseKey}`];
-
-        if (bookingUrl) {
-          await syncExternalIcalToGoogle(slug, bookingUrl, 'Booking.com');
-        }
-        if (airbnbUrl) {
-          await syncExternalIcalToGoogle(slug, airbnbUrl, 'Airbnb');
-        }
-      } catch (err: any) {
-        console.error(`[Background Sync] Error syncing ${slug}:`, err.message);
-      }
+        const mapping: Record<string, string> = { 'apartament-premium-king': 'PREMIUM_KING', 'apartament-deluxe-double': 'DELUXE_DOUBLE', 'apartament-family-standard': 'FAMILY_STANDARD', 'apartament-family-deluxe': 'FAMILY_DELUXE', 'peraduo': 'PERADUO', 'peraconfort': 'PERACONFORT' };
+        const baseKey = mapping[slug] || slug.toUpperCase().replace(/-/g, '_');
+        const urls = [process.env[`ICAL_BOOKING_${baseKey}`], process.env[`ICAL_AIRBNB_${baseKey}`]];
+        if (urls[0]) await syncExternalIcalToGoogle(slug, urls[0], 'Booking.com').catch(() => {});
+        if (urls[1]) await syncExternalIcalToGoogle(slug, urls[1], 'Airbnb').catch(() => {});
+      } catch (err) {}
     }
-    console.log("[Background Sync] Finished full sync.");
   };
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    
-    // Start background sync after server is listening to avoid blocking health checks
-    console.log("[Background Sync] Scheduling initial sync...");
-    setTimeout(runFullSync, 5000);
-    // Run every 30 minutes thereafter
-    setInterval(runFullSync, 30 * 60 * 1000);
-  });
+  setTimeout(runFullSync, 10000);
+  setInterval(runFullSync, 30 * 60 * 1000);
 }
 
 console.log("[Server] Starting initialization...");
