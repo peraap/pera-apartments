@@ -102,7 +102,7 @@ const Navbar = ({ lang, setLang }: { lang: 'ro' | 'en', setLang: (l: 'ro' | 'en'
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const isHeaderSolid = scrolled || !['/', '/apartamente', '/contact'].includes(location.pathname);
+  const isHeaderSolid = scrolled || !['/', '/apartamente'].includes(location.pathname);
 
   const navLinks = [
     { name: t.home, path: '/' },

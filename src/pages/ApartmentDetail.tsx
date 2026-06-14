@@ -29,7 +29,7 @@ import { AuthModal } from '../components/AuthModal';
 import { Apartment } from '../types';
 import { toast } from 'sonner';
 import { Helmet } from 'react-helmet-async';
-import { TiltCard, Magnetic, GlowWrapper, TextReveal, ParallaxImage, AnimatedSection, Reveal3D, SmoothIn, FloatingElement, PhotoAlbum, VibrantGallery, NanoBanana } from '../components/AnimatedComponents';
+import { TiltCard, Magnetic, GlowWrapper, TextReveal, ParallaxImage, AnimatedSection, Reveal3D, SmoothIn, FloatingElement, VibrantGallery, NanoBanana } from '../components/AnimatedComponents';
 
 const detailTranslations = {
   ro: {
@@ -265,7 +265,7 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         rooms: 0,
         bathrooms: 0,
         amenities: lang === 'ro' ? ["Echipament inclus", "Nocturnă"] : ["Equipment included", "Night lighting"],
-        images: [],
+        images: ["/47c15380-62ba-479c-8720-c45112e0cc76.jpg", "/603bc507-195c-43f5-8de7-02d10220a4aa.jpg"],
         location: "Cristian, Brașov",
         slug: "teren-tenis",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz",
@@ -496,46 +496,85 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
                   <div className="absolute top-0 left-0 w-full h-8 bg-black"></div>
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-white/20 z-10"></div>
                   
-                  <div className="mb-6 mt-6">
-                    <span className="text-[10px] font-black uppercase tracking-[0.5em] text-vibrant-indigo mb-4 block">STARTING FROM</span>
-                    <div className="flex flex-wrap items-baseline gap-4 mb-4">
-                      <span className="text-6xl font-display font-black text-neutral-900 tracking-tighter">{apartment.pricePerNight}</span>
-                      <span className="text-2xl font-black text-neutral-900 uppercase">LEI</span>
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">/ {t.pricePerNight}</span>
-                    </div>
-                  </div>
+                  {apartment.slug === 'teren-tenis' ? (
+                    <>
+                      <div className="mb-6 mt-6">
+                        <span className="text-[10px] font-black uppercase tracking-[0.5em] text-vibrant-indigo mb-4 block">
+                          {lang === 'ro' ? 'FACILITATE COMPLEX' : 'RESORT AMENITY'}
+                        </span>
+                        <div className="flex flex-col mb-4">
+                          <span className="text-4xl md:text-5xl font-display font-black text-neutral-900 tracking-tighter uppercase leading-none">
+                            {lang === 'ro' ? 'ACCES GRATUIT' : 'FREE ACCESS'}
+                          </span>
+                          <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mt-4 leading-relaxed">
+                            {lang === 'ro' ? 'EXCLUSIV PENTRU OASPEȚII NOȘTRI' : 'EXCLUSIVELY FOR OUR GUESTS'}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="space-y-6 pt-12 border-t border-neutral-100">
-                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-neutral-500 mb-6">{lang === 'ro' ? 'OPȚIUNI REZERVARE' : 'BOOKING OPTIONS'}</p>
-                    
-                    {/* Booking.com Button */}
-                    <Magnetic>
-                      <a 
-                        href={apartment.bookingUrl || "https://www.booking.com/Share-vCX4Bz"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full bg-[#003580] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#00224f] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn"
-                      >
-                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
-                        <ExternalLink size={16} />
-                        {t.bookBooking}
-                      </a>
-                    </Magnetic>
+                      <div className="space-y-6 pt-12 border-t border-neutral-100">
+                        <p className="text-sm font-bold text-neutral-600 leading-relaxed italic">
+                          {lang === 'ro'
+                            ? "Terenul de tenis privat este pus la dispoziție în mod gratuit, cu toate echipamentele necesare incluse, exclusiv pentru persoanele cazate în cadrul complexului."
+                            : "The private tennis court is provided free of charge, with all necessary equipment included, exclusively for guests staying at the complex."}
+                        </p>
+                        
+                        <Magnetic>
+                          <button 
+                            onClick={() => navigate('/apartamente')}
+                            className="w-full bg-[#4f46e5] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#4338ca] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn"
+                          >
+                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
+                            <ChevronRight size={16} />
+                            {lang === 'ro' ? 'VEZI ALL APARTAMENTE' : 'VIEW ALL APARTMENTS'}
+                          </button>
+                        </Magnetic>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-6 mt-6">
+                        <span className="text-[10px] font-black uppercase tracking-[0.5em] text-vibrant-indigo mb-4 block">STARTING FROM</span>
+                        <div className="flex flex-wrap items-baseline gap-4 mb-4">
+                          <span className="text-6xl font-display font-black text-neutral-900 tracking-tighter">{apartment.pricePerNight}</span>
+                          <span className="text-2xl font-black text-neutral-900 uppercase">LEI</span>
+                          <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">/ {t.pricePerNight}</span>
+                        </div>
+                      </div>
 
-                    {/* Airbnb Button */}
-                    <Magnetic>
-                      <a 
-                        href={apartment.airbnbUrl || "https://www.airbnb.com"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full bg-[#FF5A5F] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#e04f53] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn mt-4"
-                      >
-                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
-                        <ExternalLink size={16} />
-                        {t.bookAirbnb}
-                      </a>
-                    </Magnetic>
-                  </div>
+                      <div className="space-y-6 pt-12 border-t border-neutral-100">
+                        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-neutral-500 mb-6">{lang === 'ro' ? 'OPȚIUNI REZERVARE' : 'BOOKING OPTIONS'}</p>
+                        
+                        {/* Booking.com Button */}
+                        <Magnetic>
+                          <a 
+                            href={apartment.bookingUrl || "https://www.booking.com/Share-vCX4Bz"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full bg-[#003580] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#00224f] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn"
+                          >
+                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
+                            <ExternalLink size={16} />
+                            {t.bookBooking}
+                          </a>
+                        </Magnetic>
+
+                        {/* Airbnb Button */}
+                        <Magnetic>
+                          <a 
+                            href={apartment.airbnbUrl || "https://www.airbnb.com"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full bg-[#FF5A5F] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#e04f53] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn mt-4"
+                          >
+                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
+                            <ExternalLink size={16} />
+                            {t.bookAirbnb}
+                          </a>
+                        </Magnetic>
+                      </div>
+                    </>
+                  )}
                 </div>
               </Reveal3D>
               

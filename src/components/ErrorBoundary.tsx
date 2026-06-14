@@ -32,7 +32,7 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="text-neutral-500 text-sm mb-8">
               Am întâmpinat o eroare neașteptată. Te rugăm să reîncarci pagina sau să încerci mai târziu.
             </p>
-            {process.env.NODE_ENV === 'development' && (
+            {(import.meta.env?.DEV || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1') || window.location.hostname.includes('dev-')))) && (
               <pre className="text-[10px] text-left bg-neutral-100 p-4 rounded-xl overflow-auto mb-8 max-h-40">
                 {this.state.error?.message}
               </pre>

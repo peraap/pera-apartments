@@ -40,8 +40,12 @@
   .description-small, .amenity-item {
     @apply font-sans text-xs leading-relaxed font-medium text-neutral-500 tracking-wide;
   }
-  .dark p, .dark li, .dark .description-text, section.bg-neutral-900 p, section.bg-neutral-900 li {
-    @apply text-neutral-400/90;
+  .dark p, .dark li, .dark .description-text, section.bg-neutral-900 p, section.bg-neutral-900 li,
+  .bg-[#0a0a0a] p, .bg-[#0a0a0a] li, 
+  .bg-black p, .bg-black li, 
+  section.bg-[#0a0a0a] p, section.bg-[#0a0a0a] li,
+  section.bg-black p, section.bg-black li {
+    color: #e5e5e5 !important;
   }
   span:not(.font-display):not(.font-mono), div:not(.font-display):not(.font-mono) {
     @apply tracking-tight;

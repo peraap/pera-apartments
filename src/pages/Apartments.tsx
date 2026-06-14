@@ -15,7 +15,7 @@ import { db } from '../firebase';
 import { Apartment } from '../types';
 import { Helmet } from 'react-helmet-async';
 import { Tag, ArrowRight, Home as HomeIcon } from 'lucide-react';
-import { TiltCard, Magnetic, GlowWrapper, TextReveal, ParallaxImage, AnimatedSection, Reveal3D, FloatingElement, SmoothIn, PhotoAlbum, NanoBanana, VibrantGallery } from '../components/AnimatedComponents';
+import { TiltCard, Magnetic, GlowWrapper, TextReveal, ParallaxImage, AnimatedSection, Reveal3D, FloatingElement, SmoothIn, NanoBanana, VibrantGallery } from '../components/AnimatedComponents';
 
 const apartmentsTranslations = {
   ro: {
@@ -248,6 +248,21 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
         images: ["/peraconfort-7.jpg", "/peraduo-5.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-6.jpg"],
         location: "Cristian, Brașov",
         slug: "peraconfort",
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+      },
+      {
+        id: '7',
+        name: lang === 'ro' ? "Teren Tenis" : "Tennis Court",
+        shortDescription: lang === 'ro' ? "Facilități sportive de top pentru oaspeții noștri." : "Top sports facilities for our guests.",
+        description: lang === 'ro' ? "Bucură-te de un meci de tenis pe terenul nostru profesionist, situat chiar în incinta complexului. O modalitate excelentă de a te menține activ în timpul vacanței." : "Enjoy a tennis match on our professional court, located right within the complex. A great way to stay active during your vacation.",
+        pricePerNight: 0,
+        capacity: 0,
+        rooms: 0,
+        bathrooms: 0,
+        amenities: lang === 'ro' ? ["Echipament inclus", "Nocturnă"] : ["Equipment included", "Night lighting"],
+        images: ["/47c15380-62ba-479c-8720-c45112e0cc76.jpg", "/603bc507-195c-43f5-8de7-02d10220a4aa.jpg"],
+        location: "Cristian, Brașov",
+        slug: "teren-tenis",
         bookingUrl: "https://www.booking.com/Share-vCX4Bz"
       }
     ];
@@ -495,8 +510,16 @@ export default function Apartments({ lang = 'ro' }: { lang?: string }) {
                       <div className="flex items-center justify-between w-full p-10 bg-indigo-50/50 rounded-[2.5rem] border border-vibrant-indigo/10 group-hover:bg-vibrant-indigo group-hover:text-white transition-all duration-700">
                         <div>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-display font-black tracking-tighter">{apt.pricePerNight} lei</span>
-                            <span className="opacity-50 text-[9px] uppercase font-black tracking-widest">/ night</span>
+                            {apt.slug === 'teren-tenis' ? (
+                              <span className="text-3xl font-display font-black tracking-tighter uppercase text-vibrant-indigo group-hover:text-white transition-colors">
+                                {lang === 'ro' ? 'GRATUIT / OASPEȚI' : 'FREE / GUESTS'}
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-4xl font-display font-black tracking-tighter">{apt.pricePerNight} lei</span>
+                                <span className="opacity-50 text-[9px] uppercase font-black tracking-widest">/ night</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         

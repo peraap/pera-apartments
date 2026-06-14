@@ -29,7 +29,6 @@ import {
   Reveal3D,
   FloatingElement,
   SmoothIn,
-  PhotoAlbum,
   VibrantGallery,
   NanoBanana
 } from '../components/AnimatedComponents';
@@ -723,14 +722,14 @@ const TennisCourt = ({ t }: { t: any }) => {
             <div className="relative">
               <Reveal3D>
                 <div className="bg-white/5 border border-white/10 p-16 rounded-[3rem] backdrop-blur-xl group hover:bg-white hover:text-black transition-all duration-700 shadow-2xl">
-                  <span className="text-[10px] uppercase tracking-[1em] font-black text-white/30 group-hover:text-black/30 transition-colors mb-8 block">PRO SPORT</span>
-                  <h2 className="text-5xl md:text-7xl font-display font-black mb-10 leading-none tracking-tighter">
+                  <span className="text-[10px] uppercase tracking-[1em] font-black text-white/50 group-hover:text-black/40 transition-colors mb-8 block">PRO SPORT</span>
+                  <h2 className="text-5xl md:text-7xl font-display font-black mb-10 leading-none tracking-tighter text-white group-hover:text-black transition-colors duration-700">
                     <TextReveal text={t.tennisTitle} />
-                    <span className="italic font-light text-white/20 group-hover:text-black/20 block">
+                    <span className="italic font-light text-white/40 group-hover:text-black/20 block transition-colors duration-700">
                       <TextReveal text={t.tennisTitleItalic} />
                     </span>
                   </h2>
-                  <p className="text-lg text-white/60 group-hover:text-black/60 font-bold leading-relaxed mb-12 italic">
+                  <p className="text-lg text-white/70 group-hover:text-neutral-700 font-bold leading-relaxed mb-12 italic transition-colors duration-700">
                     {t.tennisDesc}
                   </p>
                   <ul className="space-y-6">
@@ -739,7 +738,7 @@ const TennisCourt = ({ t }: { t: any }) => {
                         <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mr-6 group-hover:bg-black/5 transition-all">
                           <Check className="text-white group-hover:text-black" size={18} strokeWidth={4} />
                         </div>
-                        <span className="text-sm font-black uppercase tracking-widest opacity-80 group-hover:opacity-100">{item}</span>
+                        <span className="text-sm font-black uppercase tracking-widest text-white/90 group-hover:text-black/85 transition-colors duration-700">{item}</span>
                       </li>
                     ))}
                   </ul>
