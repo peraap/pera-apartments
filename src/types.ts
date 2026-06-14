@@ -13,6 +13,7 @@ export interface Apartment {
   location: string;
   slug: string;
   bookingUrl: string;
+  airbnbUrl?: string;
   metaTitle?: string;
   metaDescription?: string;
 }

@@ -19,6 +19,7 @@ import {
   Award,
   ChevronDown,
   BookOpen,
+  ExternalLink,
   X
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
@@ -27,7 +28,6 @@ import { useAuth } from '../AuthContext';
 import { AuthModal } from '../components/AuthModal';
 import { Apartment } from '../types';
 import { toast } from 'sonner';
-import { BookingCalendar } from '../components/BookingCalendar';
 import { Helmet } from 'react-helmet-async';
 import { TiltCard, Magnetic, GlowWrapper, TextReveal, ParallaxImage, AnimatedSection, Reveal3D, SmoothIn, FloatingElement, PhotoAlbum, VibrantGallery, NanoBanana } from '../components/AnimatedComponents';
 
@@ -61,7 +61,9 @@ const detailTranslations = {
     total: "Total",
     bookingSuccess: "Cererea de rezervare a fost trimisă! Te vom contacta în curând.",
     bookingError: "A apărut o eroare. Te rugăm să încerci din nou.",
-    selectDates: "Te rugăm să selectezi datele sejurului."
+    selectDates: "Te rugăm să selectezi datele sejurului.",
+    bookBooking: "Rezervă pe Booking.com",
+    bookAirbnb: "Rezervă pe Airbnb"
   },
   en: {
     loading: "Loading...",
@@ -92,7 +94,9 @@ const detailTranslations = {
     total: "Total",
     bookingSuccess: "Booking request sent! We will contact you soon.",
     bookingError: "An error occurred. Please try again.",
-    selectDates: "Please select your stay dates."
+    selectDates: "Please select your stay dates.",
+    bookBooking: "Book on Booking.com",
+    bookAirbnb: "Book on Airbnb"
   }
 };
 
@@ -152,7 +156,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         ],
         location: "Cristian, Brașov",
         slug: "apartament-premium-king",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       },
       {
         id: '2',
@@ -171,7 +176,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         ],
         location: "Cristian, Brașov",
         slug: "apartament-deluxe-double",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       },
       {
         id: '3',
@@ -192,7 +198,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         ],
         location: "Cristian, Brașov",
         slug: "apartament-family-deluxe",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       },
       {
         id: '4',
@@ -213,7 +220,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         ],
         location: "Cristian, Brașov",
         slug: "apartament-family-standard",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       },
       {
         id: '5',
@@ -228,7 +236,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         images: ["/peraduo-2.jpg", "/peraduo-1.jpg", "/peraduo-3.jpg", "/peraduo-4.jpg", "/peraconfort-1.jpg", "/peraconfort-5.jpg"],
         location: "Cristian, Brașov",
         slug: "peraduo",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       },
       {
         id: '6',
@@ -243,7 +252,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         images: ["/peraconfort-7.jpg", "/peraduo-5.jpg", "/peraconfort-2.jpg", "/peraconfort-3.jpg", "/peraconfort-4.jpg", "/peraconfort-6.jpg"],
         location: "Cristian, Brașov",
         slug: "peraconfort",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       },
       {
         id: '7',
@@ -258,7 +268,8 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
         images: [],
         location: "Cristian, Brașov",
         slug: "teren-tenis",
-        bookingUrl: "https://www.booking.com/Share-vCX4Bz"
+        bookingUrl: "https://www.booking.com/Share-vCX4Bz",
+        airbnbUrl: "https://www.airbnb.com"
       }
     ];
 
@@ -494,30 +505,36 @@ export default function ApartmentDetail({ lang = 'ro' }: { lang?: string }) {
                     </div>
                   </div>
 
-                  <div className="space-y-6 pt-12 border-t border-neutral-100 mb-12">
-                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-neutral-500 mb-10">BOOKING OPTIONS</p>
+                  <div className="space-y-6 pt-12 border-t border-neutral-100">
+                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-neutral-500 mb-6">{lang === 'ro' ? 'OPȚIUNI REZERVARE' : 'BOOKING OPTIONS'}</p>
+                    
+                    {/* Booking.com Button */}
                     <Magnetic>
                       <a 
                         href={apartment.bookingUrl || "https://www.booking.com/Share-vCX4Bz"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full bg-black text-white py-8 text-[11px] font-black uppercase tracking-[0.4em] hover:bg-neutral-800 transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-2xl relative overflow-hidden group/btn"
+                        className="w-full bg-[#003580] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#00224f] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn"
                       >
                         <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
-                        <CheckCircle2 size={18} className="text-primary-accent" />
-                        INSTANT BOOKING
+                        <ExternalLink size={16} />
+                        {t.bookBooking}
                       </a>
                     </Magnetic>
-                  </div>
-                  
-                  {/* Calendar Integration */}
-                  <div className="mt-12 relative z-10">
-                      <BookingCalendar 
-                        apartmentId={apartment.id} 
-                        apartmentName={apartment.name} 
-                        pricePerNight={apartment.pricePerNight}
-                        slug={apartment.slug}
-                      />
+
+                    {/* Airbnb Button */}
+                    <Magnetic>
+                      <a 
+                        href={apartment.airbnbUrl || "https://www.airbnb.com"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full bg-[#FF5A5F] text-white py-6 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-[#e04f53] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 rounded-[2rem] shadow-xl relative overflow-hidden group/btn mt-4"
+                      >
+                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
+                        <ExternalLink size={16} />
+                        {t.bookAirbnb}
+                      </a>
+                    </Magnetic>
                   </div>
                 </div>
               </Reveal3D>

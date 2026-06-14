@@ -61,100 +61,38 @@ async function startServer() {
   const PORT = 3000;
   const distPath = path.join(process.cwd(), 'dist');
 
-  // ----- IMMEDIATE LISTEN (CRITICAL FOR PLATFORM HEALTH) -----
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Server] PORT OPEN: Listening on port ${PORT}`);
+  // 1. HEALTH CHECK - ABSOLUTE TOP PRIORITY
+  app.get("/api/health", (req, res) => {
+    res.set('Content-Type', 'application/json');
+    res.status(200).send(JSON.stringify({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      version: "1.7.5-STABLE",
+      env: process.env.NODE_ENV
+    }));
   });
 
-  console.log("[Server] Registering diagnostic logger...");
+  // 1.1 DIAGNOSTIC LOGGER
   app.use((req, res, next) => {
-    console.log(`[REQUEST] ${req.method} ${req.url} - ${new Date().toISOString()}`);
+    if (req.path === '/api/health') return next();
+    console.log(`[REQ] ${req.method} ${req.url}`);
     next();
   });
 
-  // 1. HEALTH CHECK (MUST be first)
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      version: "1.6.6-FINAL-FIX",
-      env: process.env.NODE_ENV,
-      adminDb: !!adminDb
-    });
-  });
-
-  // 1.5 CORS (Crucial for frontend)
+  // 1.2 CORS
   app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
   }));
 
-  // 2. STRIPE WEBHOOK (Needs raw body, MUST be before express.json())
-  app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
-    const sig = req.headers['stripe-signature'] as string;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    let event;
-    try {
-      if (!stripe) throw new Error("Stripe is not initialized");
-      if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET is missing");
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    } catch (err: any) {
-      console.error(`Webhook Error: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      try {
-        const metadata = session.metadata;
-        if (metadata) {
-            const bookingData = {
-              apartmentId: metadata.apartmentId,
-              apartmentName: metadata.apartmentName || 'Apartament Pera',
-              checkIn: metadata.checkIn,
-              checkOut: metadata.checkOut,
-              guestName: metadata.guestName,
-              guestEmail: metadata.guestEmail,
-              totalPrice: parseFloat(metadata.totalPrice || '0'),
-              status: 'confirmed',
-              paymentIntentId: session.payment_intent as string,
-              sessionId: session.id,
-              createdAt: new Date().toISOString(),
-              source: 'stripe_webhook'
-            };
-            if (db) await addDoc(collection(db, 'bookings'), bookingData);
-            try { 
-              await Promise.all([
-                logBookingToSheet(bookingData), 
-                addBookingToCalendar(bookingData)
-              ]); 
-            } catch (syncError) { console.error("Sync Error:", syncError); }
-            
-            const recipients = ['contact.peraapartments@gmail.com', 'petreandrei1979@gmail.com'];
-            if (metadata.guestEmail) recipients.push(metadata.guestEmail);
-            try {
-              await transporter.sendMail({
-                from: `"Pera Apartments" <${process.env.GMAIL_USER || 'contact.peraapartments@gmail.com'}>`,
-                to: recipients, 
-                subject: 'Confirmare Rezervare - Pera Apartments',
-                html: `<h2>Rezervare Nouă Confirmată!</h2><p>Oaspete: ${metadata.guestName}</p><p>Apartament: ${metadata.apartmentName}</p>`
-              });
-            } catch (emailError) { console.error("Email Error:", emailError); }
-        }
-      } catch (error) { console.error("Webhook processing error:", error); }
-    }
-    res.json({ received: true });
-  });
-
-  // 3. JSON BODY PARSER
-  console.log("[Server] Registering JSON parser...");
+  // 3. JSON PARSER
   app.use(express.json());
 
-  // 4. API ROUTE HANDLERS
+  // 4. API FUNCTIONS
   async function handleIcalExport(req: any, res: any) {
     try {
-      console.log(`[iCal-HIT] ${new Date().toISOString()} | Path: ${req.path}`);
+      console.log(`[iCal] Request for ${req.params.slug}`);
       let slug = req.params.slug || req.path.split('/').pop() || '';
       if (slug.toLowerCase().endsWith('.ics')) slug = slug.substring(0, slug.length - 4);
       if (!slug) return res.status(400).send("Slug required");
@@ -237,7 +175,7 @@ async function startServer() {
     }
   }
 
-  console.log("[Server] Registering API routes...");
+  // 5. REGISTER API ROUTES
   app.all("/api/sync", handleSync);
   app.all("/api/sync-calendar", handleSync);
   app.all("/api/sync-calendars", handleSync);
@@ -245,8 +183,8 @@ async function startServer() {
 
   app.get("/api/sheet-bookings", async (req, res) => {
     try {
-      const auth = await getSheetsAuth();
-      const sheets = google.sheets({ version: 'v4', auth });
+      const authHeader = await getSheetsAuth();
+      const sheets = google.sheets({ version: 'v4', auth: authHeader });
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: process.env.GOOGLE_SHEET_ID, range: 'Rezervari!A2:K200',
       });
@@ -279,75 +217,66 @@ async function startServer() {
     } catch (error: any) { res.status(500).json({ error: error.message }); }
   });
 
-  app.post("/api/create-checkout-session", async (req, res) => {
-    try {
-      const { apartmentId, apartmentName, totalPrice, checkIn, checkOut, guestEmail, guestName } = req.body;
-      const origin = req.headers.origin || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [{
-          price_data: { currency: "ron", product_data: { name: `Rezervare ${apartmentName}`, description: `${checkIn} - ${checkOut}` }, unit_amount: Math.round(totalPrice * 100) },
-          quantity: 1,
-        }],
-        mode: "payment",
-        allow_promotion_codes: true,
-        success_url: `${origin}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${origin}/apartamente/${apartmentId}`,
-        customer_email: guestEmail || undefined,
-        metadata: { apartmentId, apartmentName, checkIn, checkOut, guestName, guestEmail, totalPrice: totalPrice.toString() },
-      });
-      res.json({ id: session.id, url: session.url });
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
-  });
-
-  app.post("/api/verify-booking", async (req, res) => {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(req.body.sessionId);
-      res.json({ status: session.payment_status === "paid" ? "success" : "pending", metadata: session.metadata });
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
-  });
-
   app.get("/api/debug-firestore", async (req, res) => {
     const results: any = { adminDb: !!adminDb, clientDb: !!db };
     try { if (adminDb) results.count = (await adminDb.collection('apartments').get()).size; } catch(e:any) { results.err = e.message; }
     res.json(results);
   });
 
-  // Final catch-all for any /api/* route that didn't match
+  // API 404
   app.all("/api/*", (req, res) => {
-    console.warn(`[API-404] No match for ${req.method} ${req.url}`);
-    res.status(404).json({ error: "API route not found", path: req.url });
+    res.status(404).json({ error: "API route not found" });
   });
 
-  // 5. VITE / STATIC FILES
+  // 6. VITE / STATIC
   if (process.env.NODE_ENV !== "production") {
-    console.log("[Server] Configuring Vite middleware for development...");
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({ 
-      root: process.cwd(), 
+      root: process.cwd(),
       server: { 
-        middlewareMode: true, 
-        host: '0.0.0.0',
-        hmr: false 
+        middlewareMode: true,
+        hmr: false
       }, 
       appType: "spa" 
     });
+    
+    console.log("[Server] Vite middleware used for root:", process.cwd());
     app.use(vite.middlewares);
     
-    app.get('*', (req, res, next) => {
+    app.get('*', async (req, res, next) => {
+      // 1. Skip /api (already handled above, but just in case)
       if (req.path.startsWith('/api/')) return next();
-      console.log(`[SPA-Fallback] Serving index.html for ${req.url}`);
-      res.sendFile(path.join(process.cwd(), 'index.html'));
+      
+      // 2. If the request has an extension and survived vite.middlewares, it's a real 404
+      // BUT we should be careful with /src/... paths
+      if (req.path.includes('.') && !req.path.endsWith('.html')) {
+        console.warn(`[Vite-Miss] ${req.method} ${req.url}`);
+        return next();
+      }
+      
+      try {
+        const url = req.originalUrl;
+        const template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        const html = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        console.error(`[SPA-Error] ${e.message}`);
+        res.status(500).end(e.message);
+      }
     });
   } else {
-    console.log("[Server] Configuring static files for production...");
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: "API route not found" });
-      console.log(`[Production-Fallback] Serving index.html for ${req.url}`);
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // 7. LISTEN
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Server] UP on port ${PORT}`);
+  });
 
   // 7. BACKGROUND SYNC
   const runFullSync = async () => {
